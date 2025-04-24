@@ -153,6 +153,20 @@
     display: inline;
   }
   
+
+.checkbox-contenedor {
+  display: flex;
+  align-items: center;
+  margin: 10px 0;
+}
+.checkbox-contenedor input[type="checkbox"] {
+  accent-color: #45814d; /* Usa tu color verde */
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+}
+style>
+
   /* =========================
      BARRA DE NAVEGACIÓN
      ========================= */
@@ -188,6 +202,17 @@
     gap: 10px;
     margin-bottom: 20px;
   }
+
+  .fila-flex {
+    display: flex;
+    align-items: center;
+    gap: 15px; 
+    margin-bottom: 15px;
+  }
+  
+  .fila-flex > * {
+    flex: 1; 
+  }
   
   form:not(.form-doble-columna):not(.form-boton):not(.form-inline) {
     max-width: 600px;
@@ -221,6 +246,30 @@
   
   form button {
     width: 100%;
+  }
+
+  .opcion-contenedor {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+  }
+  
+  .form_caja {
+    padding: 8px 12px;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .form_caja p {
+    margin: 0;
+  }
+  
+  .checkbox-contenedor {
+    display: flex;
+    align-items: center;
+    gap: 5px;
   }
   
   /* =========================
