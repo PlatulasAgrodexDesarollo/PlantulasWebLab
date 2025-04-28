@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Limpieza de Repisas</title>
+    <title>Panel Encargado de Organización y Limpieza de Incubador</title>
     <link rel="stylesheet" href="../style.css?v=<?= time(); ?>" />
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -25,7 +25,7 @@
             />
           </a>
           <div>
-            <h2>Limpieza de Repisas</h2>
+            <h2>Encargado de Organización y Limpieza de Incubador</h2>
             <p></p>
           </div>
         </div>
@@ -34,8 +34,8 @@
           <nav class="navbar bg-body-tertiary">
             <div class="container-fluid">
               <div class="Opciones-barra">
-                <button onclick="window.location.href='dashboard_eol.html'">
-                  🔙 Regresar al Dashboard
+                <button onclick="window.location.href='../Login/logout.php'">
+                  Cerrar Sesión
                 </button>
               </div>
             </div>
@@ -45,49 +45,27 @@
 
       <!-- Contenido principal -->
       <main>
-        <div class="fila-flex">
-          <form>
-            <div>
-              <div>
-                <h3>Variedad que se lavara</h3>
-                <div class="form_caja">
-                  <p>Variedad 1</p>
-                </div>
-                <div class="form_caja">
-                  <p>Variedad 2</p>
-                </div>
-              </div>
-            </div>
-          </form>
-          <form>
-            <div>
-              <h3>Estado de la organización</h3>
-              
-              <!-- Opción 1 -->
-              <div class="opcion-contenedor">
-                <div class="form_caja">
-                  <p>opcion 1</p>
-                </div>
-                <div class="checkbox-contenedor">
-                  <input type="checkbox" id="opcion1">
-                  <label for="opcion1">Colocada en caja</label>
-                </div>
-              </div>
-              
-              <!-- Opción 2 -->
-              <div class="opcion-contenedor">
-                <div class="form_caja">
-                  <p>opcion 2</p>
-                </div>
-                <div class="checkbox-contenedor">
-                  <input type="checkbox" id="opcion2">
-                  <label for="opcion2">Otra opción</label>
-                </div>
-              </div>
-            </div>
-            </div>
-          </form>
-        </div>
+        <section class="dashboard-grid">
+          <div class="card card-ecas" id="card-desinfeccion">
+            <h2>📋 Organización de material para lavado</h2>
+            <p>Organiza los materiales para el lavado.</p>
+            <a
+              href="organizacion_material_lavado.php"
+              onclick="guardarScroll('card-desinfeccion')"
+              >Ir a Registros</a
+            >
+          </div>
+
+          <div class="card" id="card-historial-desinfeccion">
+            <h2>🧼 Limpieza de Repisas</h2>
+            <p>Accede a las asignaciones de limpieza de repisas.</p>
+            <a
+              href="limpieza_repisas.php"
+              onclick="guardarScroll('card-historial-desinfeccion')"
+              >Ver Historial</a
+            >
+          </div>
+        </section>
       </main>
 
       <footer>

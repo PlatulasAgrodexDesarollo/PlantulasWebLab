@@ -34,7 +34,7 @@
           <nav class="navbar bg-body-tertiary">
             <div class="container-fluid">
               <div class="Opciones-barra">
-                <button onclick="window.location.href='dashboard_eol.html'">
+                <button onclick="window.location.href='dashboard_eol.php'">
                   🔙 Regresar al Dashboard
                 </button>
               </div>
