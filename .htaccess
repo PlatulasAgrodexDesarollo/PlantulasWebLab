@@ -1,0 +1,41 @@
+RewriteEngine On
+
+# ──  Seguridad de cookies de sesión  ─────────────────────
+<IfModule mod_php7.c>
+    php_value session.cookie_secure    1
+    php_value session.cookie_httponly  1
+    php_value session.cookie_samesite  Lax
+</IfModule>
+<IfModule mod_php5.c>
+    php_value session.cookie_secure    1
+    php_value session.cookie_httponly  1
+    php_value session.cookie_samesite  Lax
+</IfModule>
+# ───────────────────────────────────────────────────────────
+
+# 1. Forzar HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https\://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# 2. Redirigir automáticamente a login.php si entran a la raíz
+RewriteCond %{REQUEST_URI} ^/$
+RewriteRule ^$ /plantulas/login.php [L,R=302]
+
+# 3. Evitar listado de archivos (proteger carpetas vacías o sin index.php)
+Options -Indexes
+
+# 4. Proteger acceso directo a archivos sensibles
+<FilesMatch "\.(htaccess|htpasswd|ini|phps|fla|psd|log|sh)$">
+  Order Allow,Deny
+  Deny from all
+</FilesMatch>
+
+# 5. Permitir solo ejecución de archivos PHP específicos (opcional)
+# <FilesMatch "\.(php)$">
+#   Require all granted
+# </FilesMatch>
+
+# 6. (Opcional) Redirigir www a sin-www o viceversa
+# Uncomment if needed:
+# RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+# RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
