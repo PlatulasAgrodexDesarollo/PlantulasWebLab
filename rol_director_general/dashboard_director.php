@@ -67,7 +67,6 @@ $nowTs           = time();
     </header>
 
 <main class="container mt-4">
-  <h3 class="mt-5 mb-3">Faltan iconos (Sub titulo de la pagina)</h3>
   
   <section class="dashboard-grid">
     <div class="card" data-card-id="resumen-director">
@@ -78,24 +77,24 @@ $nowTs           = time();
       </a>
     </div>
 
-    <div class="card" data-card-id="FALTA ID">
-      <h2>Produccion</h2>
+    <div class="card" data-card-id="produccion">
+      <h2>🌱 Produccion</h2>
       <p>Siembra diaria etapa 2 y 3.</p>
+      <a href="produccion.php" onclick="rememberCard('produccion')">
+        Ver resumen
+      </a>
+    </div>
+
+    <div class="card" data-card-id="FALTA ID">
+      <h2>🫧 Lavado de planta</h2>
+      <p>Reporte de Lavado por Semana.</p>
       <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
         Ver resumen
       </a>
     </div>
 
     <div class="card" data-card-id="FALTA ID">
-      <h2>Lavado de planta</h2>
-      <p>Desde que la proxeción, lo qye se va a lavar y lo lavado de etapa 2 y 3.</p>
-      <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
-        Ver resumen
-      </a>
-    </div>
-
-    <div class="card" data-card-id="FALTA ID">
-      <h2>Inventario</h2>
+      <h2>📦 Inventario</h2>
       <p>Planta de etapa 2 y 3.</p>
       <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
         Ver resumen
@@ -103,7 +102,7 @@ $nowTs           = time();
     </div>
 
     <div class="card" data-card-id="FALTA ID">
-      <h2>Preparación de medios de cultivo y estetilizacion</h2>
+      <h2>🧪 Preparación de medios de cultivo y estetilizacion</h2>
       <p>A REVISAR.</p>
       <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
         Ver resumen
