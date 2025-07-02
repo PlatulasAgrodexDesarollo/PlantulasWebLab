@@ -1,7 +1,7 @@
 <?php
-$servername = "sql308.infinityfree.com"; // Host real que te dio el panel
-$username = "if0_38801101";              // Usuario de tu cuenta
-$password = "QWERTY58a";                 // Tu contraseña
+$servername = "localhost"; // Host real que te dio el panel
+$username = "root";              // Usuario de tu cuenta
+$password = "";                 // Tu contraseña
 $database = "if0_38801101_produccion_laboratorio"; // Nombre de la base
 
 // Crear conexión
