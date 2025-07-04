@@ -107,7 +107,42 @@ while ($fila = $resultado->fetch_assoc()) {
 
 $stmt->close();
 
+// Calcular totales
+$totalGeneralBrotes = 0;
+$totalGeneralTuppers = 0;
+$totalesPorOperador = [];
+$totalesPorVariedad = [];
 
+foreach ($plantacion as $fila) {
+    $totalGeneralBrotes += $fila['Total_Brotes'];
+    $totalGeneralTuppers += $fila['Total_Tuppers'];
+    
+    // Totales por operador
+    $operador = $fila['Operador'];
+    if (!isset($totalesPorOperador[$operador])) {
+        $totalesPorOperador[$operador] = [
+            'brotes' => 0,
+            'tuppers' => 0
+        ];
+    }
+    $totalesPorOperador[$operador]['brotes'] += $fila['Total_Brotes'];
+    $totalesPorOperador[$operador]['tuppers'] += $fila['Total_Tuppers'];
+    
+    // Totales por variedad
+    $variedad = $fila['Variedad'];
+    if (!isset($totalesPorVariedad[$variedad])) {
+        $totalesPorVariedad[$variedad] = [
+            'brotes' => 0,
+            'tuppers' => 0
+        ];
+    }
+    $totalesPorVariedad[$variedad]['brotes'] += $fila['Total_Brotes'];
+    $totalesPorVariedad[$variedad]['tuppers'] += $fila['Total_Tuppers'];
+}
+
+// Ordenar totales
+arsort($totalesPorOperador);
+arsort($totalesPorVariedad);
 
 ?>
 
@@ -172,7 +207,75 @@ $stmt->close();
     </div>
   </form>
 
-
+    <!-- Sección de Resúmenes -->
+  <div class="row mb-4">
+    <!-- Resumen por Operador -->
+    <div class="col-md-4 mb-3">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white">
+          <i class="bi bi-person"></i> Producción por Operador
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            <?php foreach ($totalesPorOperador as $operador => $totales): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <?= htmlspecialchars($operador) ?>
+              <span class="badge bg-primary rounded-pill">
+                <?= number_format($totales['brotes']) ?> brotes
+              </span>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Resumen por Variedad -->
+    <div class="col-md-4 mb-3">
+      <div class="card h-100">
+        <div class="card-header bg-success text-white">
+          <i class="bi bi-tree"></i> Producción por Variedad
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            <?php foreach ($totalesPorVariedad as $variedad => $totales): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <?= htmlspecialchars($variedad) ?>
+              <span class="badge bg-success rounded-pill">
+                <?= number_format($totales['brotes']) ?> brotes
+              </span>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Resumen General -->
+    <div class="col-md-4 mb-3">
+      <div class="card h-100">
+        <div class="card-header bg-info text-white">
+          <i class="bi bi-bar-chart"></i> Resumen General
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-column">
+            <div class="mb-3">
+              <h5 class="card-title">Total Producción</h5>
+              <p class="display-6"><?= number_format($totalGeneralBrotes) ?> brotes</p>
+            </div>
+            <div>
+              <h5 class="card-title">Total Tuppers</h5>
+              <p class="display-6"><?= number_format($totalGeneralTuppers) ?></p>
+            </div>
+            <div class="mt-2">
+              <span class="text-muted">Promedio: <?= $totalGeneralTuppers > 0 ? round($totalGeneralBrotes / $totalGeneralTuppers, 1) : 0 ?> brotes/tupper</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
     <div class="card card-lista">
         <h2></h2>
         <div class="table-responsive" >

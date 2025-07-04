@@ -93,10 +93,10 @@ $nowTs           = time();
       </a>
     </div>
 
-    <div class="card" data-card-id="FALTA ID">
+    <div class="card" data-card-id="invetnario-incubadora">
       <h2>📦 Inventario</h2>
       <p>Planta de etapa 2 y 3.</p>
-      <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
+      <a href="inventario.php" onclick="rememberCard('invetnario-incubadora')">
         Ver resumen
       </a>
     </div>
