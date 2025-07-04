@@ -19,6 +19,19 @@ if ((int) $_SESSION['Rol'] !== 5) {
     echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Encargado General de Producción.</p>";
     exit;
 }
+
+$hayCorrecciones = false;
+$stmt = $conn->prepare("
+    SELECT COUNT(*) AS n
+      FROM proyecciones_lavado
+     WHERE Estado_Flujo = 'correccion'
+       AND ID_Creador   = ?
+");
+$stmt->bind_param('i', $ID_Operador);
+$stmt->execute();
+$hayCorrecciones = ($stmt->get_result()->fetch_assoc()['n'] ?? 0) > 0;
+$stmt->close();
+
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 60 * 3;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
@@ -157,7 +170,18 @@ $nowTs           = time();
             Crear Proyección 
           </a>
       </div>
-      
+
+<?php if ($hayCorrecciones): ?>
+    <div class="card" data-card-id="corregir-proyecciones">
+      <h2>🔄 Corrección de Proyecciones</h2>
+      <p>Atiende las proyecciones devueltas para ajuste.</p>
+      <a href="corregir_proyecciones.php"
+         onclick="rememberCard('corregir-proyecciones')">
+        Corregir Proyecciones
+      </a>
+    </div>
+<?php endif; ?>
+
         <div class="card" data-card-id="preparacion-soluciones">
           <h2>🧪 Preparación de Soluciones Madre</h2>
           <p>Registra la preparación de soluciones madre.</p>

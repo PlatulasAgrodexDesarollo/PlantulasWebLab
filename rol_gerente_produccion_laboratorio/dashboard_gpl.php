@@ -111,7 +111,14 @@ $nowTs           = time();
     Ir a verificación
   </a>
 </div>
-
+<div class="card" data-card-id="proy-semana">
+  <h2>📊 Proyeccion semanal de lavado</h2>
+  <p>Totales verificados por variedad (semana actual).</p>
+  <a href="ver_proyeccion_semana.php"
+     onclick="rememberCard('proy-semana')">
+     Ver resumen
+  </a>
+</div>
         <div class="card" id="card-vista-tuppers">
           <h2>📋 Inventario de Tuppers</h2>
           <p>Consulta todos los tuppers, sus estados y su trazabilidad completa.</p>

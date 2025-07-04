@@ -78,77 +78,82 @@ $nowTs           = time();
       </div>
     </header>
 
-    <main>
-      <section class="dashboard-grid" data-card-id="reportes_produccion">
-        <div class="card" data-card-id="reportes-produccion">
-          <h2>🔬 Reportes de Siembra</h2>
-          <p>Revisa y verifica los reportes de Siembra.</p>
-          <a href="reportes_produccion.php">Ver Reportes</a>
-        </div>
+<main>
+  <!-- ─── Grupo 1: Operaciones diarias ─── -->
+  <h4 class="ms-3 mt-4 mb-2 text-primary">📘 Operaciones y Reportes</h4>
+  <section class="dashboard-grid mb-4" data-card-id="grupo-1">
+    <div class="card" data-card-id="reportes-produccion">
+      <h2>🔬 Reportes de Siembra</h2>
+      <p>Revisa y verifica los reportes de Siembra.</p>
+      <a href="reportes_produccion.php">Ver Reportes</a>
+    </div>
 
-        <div class="card" data-card-id="inventario_materiales">
-          <h2>📦 Inventario de Materiales</h2>
-          <p>Agrega y actualiza existencias de pinzas, bisturíes, periódicos y trapos.</p>
-          <a href="inventario_materiales.php">Ver detalles</a>
-        </div>
+    <div class="card card-ecas" data-card-id="card-desinfeccion">
+      <h2>📋 Acomodo de tupper en cajas negras</h2>
+      <p>Acomoda las variedades asignadas para lavado.</p>
+      <a href="acomodo_cajas_negras.php">Entrar</a>
+    </div>
 
-        <div class="card" data-card-id="suministro_material">
-          <h2>🚚 Suministro de Juegos</h2>
-          <p>Asigna juegos de herramientas a operador@s.</p>
-          <a href="suministro_material.php">Asignar</a>
-        </div>
-        <div class="card" data-card-id="card-vista-tuppers">
-          <h2>📋 Existencias de Tuppers</h2>
-          <p>Consulta todos los tuppers, sus estados y su trazabilidad completa.</p>
-          <a href="existencias_tuppers.php">Ir a Vista</a>
-        </div>
-        <div class="card" data-card-id="card-seleccion-tuppers">
-          <h2>🔬 Registro de acomodo de Tuppers en cajas negras</h2>
-          <p>Coordina la selección de tuppers para lavado.</p>
-          <a href="seleccion_tuppers.php">Gestionar selección</a>
-        </div>
-        
-        <div class="card" data-card-id="registro_datos_incubadora">
-          <h2>📝 Registro Temperatura & Humedad 🌡</h2>
-          <p>Captura diaria de condiciones del incubador.</p>
-          <a href="registro_datos_incubadora.php">Ver detalles</a>
-        </div>
-        <div class="card" data-card-id="historial_completo_incubadora">
-          <h2>📜 Historial de Parámetros</h2>
-          <p>Consulta todos los registros de temperatura y humedad.</p>
-          <a href="historial_completo_incubadora.php">Ver detalles</a>
-        </div>
-        <div class="card" data-card-id="inventario_etapa3">
-          <h2>📦 Inventario Etapa 3</h2>
-          <p>Control puntual del stock de material vegetativo</p>
-          <a href="inventario_etapa3.php">Ver detalles</a>
-        </div>
+    <div class="card" data-card-id="registro_datos_incubadora">
+      <h2>📝 Registro Temperatura & Humedad 🌡</h2>
+      <p>Captura diaria de condiciones del incubador.</p>
+      <a href="registro_datos_incubadora.php">Ver detalles</a>
+    </div>
 
-        <div class="card card-ecas" data-card-id="card-desinfeccion">
-            <h2>📋 Organización de material para clasificación</h2>
-            <p>Organiza los materiales para clasificación.</p>
-            <a href="organizacion_material_lavado.php">Ir a Registros</a>
-        </div>
+    <div class="card" data-card-id="inventario_materiales">
+      <h2>📦 Inventario de Materiales</h2>
+      <p>Agrega y actualiza existencias de pinzas, bisturíes, periódicos y trapos.</p>
+      <a href="inventario_materiales.php">Ver detalles</a>
+    </div>
 
-        <div class="card card-ecas" data-card-id="card-limpieza-incubador">
-            <h2>🧽 Registrar Limpieza de Incubador</h2>
-            <p>Registrar repisas limpias por anaquel en el incubador.</p>
-            <a href="limpieza_incubador.php">Ir al Registro</a>
-        </div>
+    <div class="card" data-card-id="suministro_material">
+      <h2>🚚 Suministro de Juegos</h2>
+      <p>Asigna juegos de herramientas a operador@s.</p>
+      <a href="suministro_material.php">Asignar</a>
+    </div>
 
-        <div class="card" data-card-id="rol-limpieza">
-          <h2>🧹 Rol de Limpieza</h2>
-          <p>Define las tareas de limpieza y asigna responsabilidades.</p>
-          <a href="rol_limpieza.php">Crear Rol de Limpieza</a>
-        </div>
+    <div class="card card-ecas" data-card-id="card-limpieza-incubador">
+      <h2>🧽 Registrar Limpieza de Incubador</h2>
+      <p>Registrar repisas limpias por anaquel en el incubador.</p>
+      <a href="limpieza_incubador.php">Ir al Registro</a>
+    </div>
 
-        <div class="card card-ecas" data-card-id="card-historial-desinfeccion">
-            <h2>🧼 Historial de Limpieza</h2>
-            <p>Accede al historial de la limpieza.</p>
-            <a href="limpieza_repisas.php">Ver Historial</a>
-        </div>
-      </section>
-    </main>
+    <div class="card" data-card-id="rol-limpieza">
+      <h2>🧹 Rol de Limpieza</h2>
+      <p>Define las tareas de limpieza y asigna responsabilidades.</p>
+      <a href="rol_limpieza.php">Crear Rol de Limpieza</a>
+    </div>
+  </section>
+
+  <!-- ─── Grupo 2: Consulta e Historiales ─── -->
+  <h4 class="ms-3 mt-4 mb-2 text-success">📗 Inventarios e Historiales</h4>
+  <section class="dashboard-grid mb-4" data-card-id="grupo-2">
+    <div class="card" data-card-id="card-vista-tuppers">
+      <h2>📋 Existencias de Tuppers</h2>
+      <p>Consulta todos los tuppers, sus estados y su trazabilidad completa.</p>
+      <a href="existencias_tuppers.php">Ir a Vista</a>
+    </div>
+
+    <div class="card" data-card-id="inventario_etapa3">
+      <h2>📦 Inventario Etapa 3</h2>
+      <p>Control puntual del stock de material vegetativo</p>
+      <a href="inventario_etapa3.php">Ver detalles</a>
+    </div>
+
+    <div class="card card-ecas" data-card-id="card-historial-desinfeccion">
+      <h2>🧼 Historial de Limpieza</h2>
+      <p>Accede al historial de la limpieza.</p>
+      <a href="limpieza_repisas.php">Ver Historial</a>
+    </div>
+
+    <div class="card" data-card-id="historial_completo_incubadora">
+      <h2>📜 Historial de Parámetros</h2>
+      <p>Consulta todos los registros de temperatura y humedad.</p>
+      <a href="historial_completo_incubadora.php">Ver detalles</a>
+    </div>
+
+  </section>
+</main>
 
     <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</footer>
   </div>

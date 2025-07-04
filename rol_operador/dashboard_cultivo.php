@@ -31,8 +31,8 @@ $tieneAsignacionesMultiplicacion = false;
 
 if ($ID_Operador) {
     // Verificar si el operador es Supervisor en la asignación de lavado
-    $sql_rol = "SELECT Rol FROM asignacion_lavado 
-                WHERE ID_Operador = ? AND Fecha = CURDATE() AND Rol = 'Supervisor'";
+$sql_rol = "SELECT Rol FROM asignacion_lavado 
+            WHERE ID_Operador = ? AND Fecha_Asignacion = CURDATE() AND Rol = 'Supervisor'";
     $stmt_rol = $conn->prepare($sql_rol);
     $stmt_rol->bind_param("i", $ID_Operador);
     $stmt_rol->execute();

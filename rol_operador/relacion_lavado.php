@@ -27,10 +27,26 @@ $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
 // Consultar asignaciones
-$sql_asignacion = "SELECT AL.ID, AL.ID_Variedad, AL.Fecha, V.Nombre_Variedad, AL.Rol, AL.Cantidad_Tuppers, AL.Estado_Final
-                   FROM asignacion_lavado AL
-                   JOIN variedades V ON AL.ID_Variedad = V.ID_Variedad
-                   WHERE AL.ID_Operador = ? AND AL.Fecha = CURDATE()";
+$sql_asignacion = "
+SELECT 
+  AL.ID,
+  AL.ID_Proyeccion,
+  V.ID_Variedad,
+  AL.Fecha_Asignacion AS Fecha,
+  V.Nombre_Variedad,
+  AL.Rol,
+  AL.Tuppers_Asignados AS Cantidad_Tuppers,
+  AL.Estado_Final
+FROM asignacion_lavado AL
+JOIN proyecciones_lavado PL ON PL.ID_Proyeccion = AL.ID_Proyeccion
+JOIN (
+    SELECT ID_Variedad, ID_Multiplicacion AS ID, 'multiplicacion' AS Etapa FROM multiplicacion
+    UNION ALL
+    SELECT ID_Variedad, ID_Enraizamiento AS ID, 'enraizamiento' AS Etapa FROM enraizamiento
+) etapas ON etapas.Etapa = PL.Etapa AND etapas.ID = PL.ID_Etapa
+JOIN variedades V ON V.ID_Variedad = etapas.ID_Variedad
+WHERE AL.ID_Operador = ? AND AL.Fecha_Asignacion = CURDATE()
+";
 $stmt_asignacion = $conn->prepare($sql_asignacion);
 $stmt_asignacion->bind_param("i", $ID_Operador);
 $stmt_asignacion->execute();
@@ -59,6 +75,12 @@ while ($row = $res_finales->fetch_assoc()) {
    $finales_realizados[$row['ID_Asignacion']] = $row['Tuppers_Final'];
 }
 
+$asignaciones_disponibles = array_filter($asignaciones, function($asig) use ($avances_realizados, $finales_realizados) {
+    $avance = $avances_realizados[$asig['ID']] ?? 0;
+    $final  = $finales_realizados[$asig['ID']] ?? 0;
+    return ($asig['Cantidad_Tuppers'] - ($avance + $final)) > 0;
+});
+
 // Guardar avance o cierre
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
     $accion = $_POST["accion"];
@@ -67,11 +89,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["accion"])) {
     $fecha_registro = (new DateTime('now', new DateTimeZone('America/Mexico_City')))->format('Y-m-d H:i:s');
 
     // Obtener tuppers asignados para esta asignación
-    $stmt_asignados = $conn->prepare("SELECT Cantidad_Tuppers FROM asignacion_lavado WHERE ID = ?");
+    $stmt_asignados = $conn->prepare("SELECT Tuppers_Asignados FROM asignacion_lavado WHERE ID = ?");
     $stmt_asignados->bind_param("i", $id_asignacion);
     $stmt_asignados->execute();
     $res_asignados = $stmt_asignados->get_result()->fetch_assoc();
-    $asignados = (int)$res_asignados['Cantidad_Tuppers'];
+    $asignados = (int)$res_asignados['Tuppers_Asignados'];
 
     if ($accion == "avance") {
         $tuppers_lavados = (int)$_POST["tuppers_lavados"];
@@ -183,10 +205,10 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
   </header>
 
   <main class="container mt-4">
-  <?php if (!empty($asignaciones)): ?>
+  <?php if (!empty($asignaciones_disponibles)): ?>
       <h3 class="mb-4">🧽 Mis Asignaciones de Hoy</h3>
       <div class="carrusel-desinfecciones">
-        <?php foreach ($asignaciones as $asignacion): ?>
+        <?php foreach ($asignaciones_disponibles as $asignacion): ?>
           <?php
           $avance = $avances_realizados[$asignacion['ID']] ?? 0;
           $final = $finales_realizados[$asignacion['ID']] ?? 0;
@@ -217,6 +239,7 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
         <?php if ($restante > 0): // Mostrar formulario solo si hay tuppers restantes ?>
           <form method="POST" id="formulario-<?= $asignacion['ID'] ?>" class="formulario-siembra mt-4" style="display:none;">
             <input type="hidden" name="id_variedad" value="<?= $asignacion['ID_Variedad'] ?>">
+            <input type="hidden" name="id_proyeccion" value="<?= $asignacion['ID_Proyeccion'] ?>">
             <input type="hidden" name="id_asignacion" value="<?= $asignacion['ID'] ?>">
 
             <h4 class="text-center mb-3">🌱 <?= htmlspecialchars($asignacion['Nombre_Variedad']) ?></h4>
@@ -225,8 +248,14 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
               <input type="hidden" name="accion" value="avance">
               <div class="mb-2">
   <label class="form-label small">🧼 Tuppers clasificados hasta ahora:</label>
-  <input type="number" name="tuppers_lavados" min="0" max="<?= $asignacion['Cantidad_Tuppers'] ?>"
-         class="form-control form-control-sm" required>
+<input 
+  type="number" 
+  name="tuppers_lavados" 
+  min="0" 
+  max="<?= $asignacion['Cantidad_Tuppers'] ?>" 
+  data-max="<?= $asignacion['Cantidad_Tuppers'] ?>"
+  class="form-control form-control-sm" 
+  required>
 </div>
 
 <div class="mb-3">
@@ -269,6 +298,19 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
   </footer>
 </div>
+  <!--Validación en vivo -->
+<script>
+document.querySelectorAll('input[name="tuppers_lavados"]').forEach(input => {
+  input.addEventListener('input', function () {
+    const max = parseInt(this.dataset.max);
+    if (parseInt(this.value) > max) {
+      this.value = max;
+      alert('⚠️ No puedes registrar más tuppers que los asignados.');
+    }
+  });
+});
+</script>
+
 
 <script>
 function mostrarFormulario(id) {

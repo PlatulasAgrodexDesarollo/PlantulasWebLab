@@ -235,9 +235,36 @@ body.scrollable .table-responsive {
 
 /* Asegurarnos de que en móvil siga ocupando todo el ancho */
 @media (max-width: 576px) {
-  .btn-organizar {
-    width: 100%;
-    margin-bottom: 0.5rem;
+  body {
+    margin: 0 !important;
+    border: none !important;
+    background-color: #fff !important;
+  }
+
+  .contenedor-pagina {
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: white !important;
+    min-height: 100vh;
+  }
+
+  #card-resumen-director {
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 1rem !important;
+  }
+
+  .row.g-4 > .col-12,
+  .row.g-4 > .col-sm-8,
+  .row.g-4 > .col-md-6,
+  .row.g-4 > .col-lg-4 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  main {
+    padding: 1rem !important;
   }
 }
 
@@ -1067,6 +1094,29 @@ style>
   .login-page .btn-login {
     font-size: 0.95rem;
     padding: 0.65rem;
+  }
+}
+@media screen and (max-width: 768px) {
+  table.table thead {
+    display: none;
+  }
+  table.table tbody tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    background-color: #f9f9f9;
+  }
+  table.table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border: none;
+  }
+  table.table tbody td::before {
+    content: attr(data-label);
+    font-weight: bold;
   }
 }
 

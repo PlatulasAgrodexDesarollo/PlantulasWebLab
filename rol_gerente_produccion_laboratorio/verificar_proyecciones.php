@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt = $conn->prepare("
             UPDATE proyecciones_lavado
-               SET Estado_Flujo = 'lavado'
+               SET Estado_Flujo = 'pendiente_acomodo'
              WHERE ID_Proyeccion = ?
                AND Estado_Flujo  = 'pendiente'
         ");
@@ -251,15 +251,6 @@ let   START_TS         = <?= $nowTs*1000 ?>;
                      id="chk_var">
               <label class="form-check-label" for="chk_var">
                 Variedad
-              </label>
-            </div>
-
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox"
-                     name="campos_rechazados[]" value="Fecha_Siembra"
-                     id="chk_fecha">
-              <label class="form-check-label" for="chk_fecha">
-                Fecha de siembra
               </label>
             </div>
           </div>

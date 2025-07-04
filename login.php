@@ -70,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             8  => 'rol_responsable_rrs/dashboard_rrs.php',
             //9  => 'rol_encargado_incubadora/dashboard_eism.php',
             //10 => 'rol_encargado_oli/dashboard_eol.php',
+            11 => 'rol_director_general/dashboard_director.php',
         ];
 
         $destino = $rutas[$rol] ?? 'panel.php';
