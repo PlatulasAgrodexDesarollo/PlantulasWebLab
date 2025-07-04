@@ -164,6 +164,30 @@ $stmt_check_avance->bind_param("ii", $ID_Operador, $id_asignacion);
         $stmt_update->bind_param("i", $id_asignacion);
         $stmt_update->execute();
 
+/* ── ¿Ya se completaron TODAS las asignaciones de la proyección? ── */
+$stmt = $conn->prepare("
+    SELECT COUNT(*) AS pendientes
+      FROM asignacion_lavado
+     WHERE ID_Proyeccion = ?
+       AND Estado_Final <> 'Completada'
+");
+$stmt->bind_param("i", $id_proyeccion);
+$stmt->execute();
+$pendientes = $stmt->get_result()->fetch_assoc()['pendientes'];
+$stmt->close();
+
+if ($pendientes == 0) {
+    /* cambia la proyección a “lavado” */
+    $stmt = $conn->prepare("
+        UPDATE proyecciones_lavado
+           SET Estado_Flujo = 'lavado'
+         WHERE ID_Proyeccion = ?
+    ");
+    $stmt->bind_param("i", $id_proyeccion);
+    $stmt->execute();
+    $stmt->close();
+}
+
         echo "<script>alert('✅ Lavado final registrado correctamente.'); window.location.href='relacion_lavado.php';</script>";
         exit();
     }

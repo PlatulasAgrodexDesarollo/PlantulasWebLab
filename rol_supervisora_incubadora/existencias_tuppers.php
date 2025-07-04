@@ -1,325 +1,256 @@
 <?php
-// 0) Mostrar errores (solo en desarrollo)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+/* dashboard_tuppers.php  ─ Inventario unificado de tuppers ---------------- */
+ini_set('display_errors',1); ini_set('display_startup_errors',1); error_reporting(E_ALL);
 
-// 1) Validar sesión y rol
-require_once __DIR__ . '/../session_manager.php';
-require_once __DIR__ . '/../db.php';
+require_once __DIR__.'/../session_manager.php';
+require_once __DIR__.'/../db.php';
 
-if (!isset($_SESSION['ID_Operador'])) {
-    header('Location: ../login.php?mensaje=Debe iniciar sesión');
-    exit;
-}
-$ID_Operador = (int) $_SESSION['ID_Operador'];
+date_default_timezone_set('America/Mexico_City');
+$conn->query("SET time_zone = '-06:00'");
 
-if ((int) $_SESSION['Rol'] !== 4) {
-    echo "<p class=\"error\">⚠️ Acceso denegado. Sólo Supervisora de Incubadora.</p>";
-    exit;
-}
-// 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-$sessionLifetime = 60 * 3;   // 180 s
-$warningOffset   = 60 * 1;   // 60 s
+/* ─── Seguridad ─────────────────────────────────────────────────────────── */
+if(!isset($_SESSION['ID_Operador'])){ header('Location: ../login.php'); exit; }
+if((int)$_SESSION['Rol']!==4){ echo "<p class='error'>⚠️ Acceso denegado, solo Supervisora de Incubadora.</p>"; exit; }
+
+/* ─── Parámetros del modal de expiración ───────── */
+$sessionLifetime = 60*3;  // 3 min
+$warningOffset   = 60;    // 1 min antes
 $nowTs           = time();
 
-// 1) Capturar filtros
-$filter_estado      = $_GET['estado']      ?? '';
-$filter_etapa       = $_GET['etapa']       ?? '';
-$filter_variedad    = $_GET['variedad']    ?? '';
-$filter_responsable = $_GET['responsable'] ?? '';
-$filter_fecha       = $_GET['fecha']       ?? '';
+/* ─── Consulta UNIÓN (ECAS + Multiplicación + Enraizamiento) ────────────── */
+$sql = "
+WITH saldo_mov AS (                    -- saldo neto x lote
+  SELECT Etapa,
+         ID_Etapa,
+         /* tupper-saldo (ya lo tenías) */
+         SUM(CASE
+               WHEN TipoMovimiento='alta_inicial'   THEN  Tuppers
+               WHEN TipoMovimiento IN('reserva_lavado','merma')
+                                                    THEN -Tuppers
+               WHEN TipoMovimiento='ajuste_manual'  THEN  Tuppers
+             END)                     AS Tup_Disp,
 
-// 2) Consulta base
-$baseSQL = "
-    SELECT 
-        l.ID_Lote,
-        CONCAT(v.Codigo_Variedad, ' – ', v.Nombre_Variedad) AS Variedad,
-        v.Color,
-        l.Fecha AS Fecha_Ingreso,
-        CASE 
-          WHEN l.ID_Etapa = 1 THEN COALESCE(s.Tuppers_Llenos,0) + COALESCE(d.Tuppers_Llenos,0)
-          WHEN l.ID_Etapa = 2 THEN COALESCE(m.Tuppers_Llenos,0)
-          WHEN l.ID_Etapa = 3 THEN COALESCE(e.Tuppers_Llenos,0)
-          ELSE 0
-        END AS Tuppers_Existentes,
-        CASE l.ID_Etapa
-          WHEN 1 THEN 'ECAS'
-          WHEN 2 THEN 'Multiplicación'
-          WHEN 3 THEN 'Enraizamiento'
-        END AS Etapa,
-        CASE 
-          WHEN l.ID_Etapa=1 AND s.ID_Siembra IS NOT NULL THEN 'Siembra'
-          WHEN l.ID_Etapa=1 AND d.ID_Division IS NOT NULL THEN 'División'
-          ELSE NULL
-        END AS Subetapa_ECAS,
-        CONCAT(o.Nombre,' ',o.Apellido_P,' ',o.Apellido_M) AS Responsable,
-        CASE 
-          WHEN l.ID_Etapa=2 THEN COALESCE(m.Estado_Revision,'S/D')
-          WHEN l.ID_Etapa=3 THEN COALESCE(e.Estado_Revision,'S/D')
-          ELSE 'S/D'
-        END AS Estado_Tupper
-    FROM lotes l
-    LEFT JOIN variedades v    ON l.ID_Variedad = v.ID_Variedad
-    LEFT JOIN operadores o    ON l.ID_Operador  = o.ID_Operador
-    LEFT JOIN siembra_ecas s  ON l.ID_Lote      = s.ID_Lote
-    LEFT JOIN division_ecas d ON s.ID_Siembra   = d.ID_Siembra
-    LEFT JOIN multiplicacion m ON l.ID_Lote     = m.ID_Lote
-    LEFT JOIN enraizamiento e  ON l.ID_Lote     = e.ID_Lote
-";
+         /* **nuevo** → saldo de BROTES */
+         SUM(CASE
+               WHEN TipoMovimiento='alta_inicial'   THEN  Brotes
+               WHEN TipoMovimiento IN('reserva_lavado','merma')
+                                                    THEN -Brotes
+               WHEN TipoMovimiento='ajuste_manual'  THEN  Brotes
+             END)                     AS Bro_Disp
+  FROM movimientos_proyeccion
+  GROUP BY Etapa, ID_Etapa
+),
 
-// 3) Aplicar filtros sobre alias (sub‐SELECT)
-$where = [];
-if ($filter_estado)      $where[] = "Estado_Tupper    = '" . $conn->real_escape_string($filter_estado) . "'";
-if ($filter_etapa)       $where[] = "Etapa            = '" . $conn->real_escape_string($filter_etapa) . "'";
-if ($filter_variedad)    $where[] = "Variedad LIKE   '%" . $conn->real_escape_string($filter_variedad) . "%'";
-if ($filter_responsable) $where[] = "Responsable LIKE '%" . $conn->real_escape_string($filter_responsable) . "%'";
-if ($filter_fecha)       $where[] = "Fecha_Ingreso   = '" . $conn->real_escape_string($filter_fecha) . "'";
+pl_salidas AS (                        -- lo que ya salió a lavado
+  SELECT Etapa,
+         ID_Etapa,
+         SUM(Tuppers_Proyectados) AS Tup_PL,
+         SUM(Brotes_Proyectados)  AS Bro_PL          -- ← nuevo
+  FROM proyecciones_lavado
+  WHERE Estado_Flujo IN ('acomodados','asignado_lavado',
+                         'lavado','enviado_tenancingo')
+  GROUP BY Etapa, ID_Etapa
+)
 
-$sql = "SELECT * FROM ( $baseSQL ) AS t";
-if ($where) {
-    $sql .= " WHERE " . implode(' AND ', $where);
-}
-$sql .= " ORDER BY Fecha_Ingreso DESC";
+/* ==================== UNIÓN DE INVENTARIO ==================== */
+SELECT * FROM (
+  /* ── ECAS · Disección ─────────────────────────────── */
+  SELECT 'ECAS'      Etapa,
+         'Disección' SubEtapa,
+         v.Codigo_Variedad,
+         v.Nombre_Variedad,
+         d.Fecha_Diseccion       Fecha,
+         d.Tuppers_Llenos        Tup_Llenos,
+         d.Tuppers_Disponibles   Tup_Disp,
+         d.Tuppers_Llenos*12     Bro_Disp          -- aprox. 12 brotes por tupper
+  FROM diseccion_hojas_ecas d
+  JOIN siembra_ecas s  ON s.ID_Siembra = d.ID_Siembra
+  JOIN variedades  v  USING(ID_Variedad)
 
-$resultado = $conn->query($sql);
+  UNION ALL
+  /* ── ECAS · División ─────────────────────────────── */
+  SELECT 'ECAS','División',
+         v.Codigo_Variedad,
+         v.Nombre_Variedad,
+         dv.Fecha_Division,
+         dv.Tuppers_Llenos,
+         dv.Tuppers_Disponibles,
+         dv.Brotes_Totales                         -- ← esta columna sí existe
+  FROM division_ecas dv
+  JOIN siembra_ecas s ON s.ID_Siembra = dv.ID_Siembra
+  JOIN variedades  v USING(ID_Variedad)
 
-// 4) Opciones dinámicas para filtros
-$estadosResult      = $conn->query("SELECT DISTINCT Estado_Tupper    FROM ( $baseSQL ) AS t");
-$variedadesResult   = $conn->query("SELECT DISTINCT Variedad         FROM ( $baseSQL ) AS t ORDER BY Variedad");
-$responsablesResult = $conn->query("SELECT DISTINCT Responsable      FROM ( $baseSQL ) AS t ORDER BY Responsable");
+  UNION ALL
+  /* ── Multiplicación ─────────────────────────────── */
+  SELECT 'Multiplicación',NULL,
+         v.Codigo_Variedad,
+         v.Nombre_Variedad,
+         m.Fecha_Siembra,
+         m.Tuppers_Llenos,
+         GREATEST(COALESCE(sm.Tup_Disp,0) - COALESCE(pl.Tup_PL,0),0),
+         GREATEST(COALESCE(sm.Bro_Disp,0) - COALESCE(pl.Bro_PL,0),0)
+  FROM multiplicacion m
+  JOIN variedades   v USING(ID_Variedad)
+  LEFT JOIN saldo_mov  sm ON sm.Etapa='multiplicacion'
+                         AND sm.ID_Etapa = m.ID_Multiplicacion
+  LEFT JOIN pl_salidas pl ON pl.Etapa='multiplicacion'
+                         AND pl.ID_Etapa = m.ID_Multiplicacion
+
+  UNION ALL
+  /* ── Enraizamiento ─────────────────────────────── */
+  SELECT 'Enraizamiento',NULL,
+         v.Codigo_Variedad,
+         v.Nombre_Variedad,
+         e.Fecha_Siembra,
+         e.Tuppers_Llenos,
+         GREATEST(COALESCE(se.Tup_Disp,0) - COALESCE(pe.Tup_PL,0),0),
+         GREATEST(COALESCE(se.Bro_Disp,0) - COALESCE(pe.Bro_PL,0),0)
+  FROM enraizamiento e
+  JOIN variedades   v USING(ID_Variedad)
+  LEFT JOIN saldo_mov  se ON se.Etapa='enraizamiento'
+                         AND se.ID_Etapa = e.ID_Enraizamiento
+  LEFT JOIN pl_salidas pe ON pe.Etapa='enraizamiento'
+                         AND pe.ID_Etapa = e.ID_Enraizamiento
+) AS inv
+ORDER BY Etapa, Fecha DESC";
+
+$rows = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
+  <title>Dashboard de Tuppers</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vista General de Tuppers</title>
-  <link rel="stylesheet" href="../style.css?v=<?= time(); ?>">
+  <link rel="stylesheet" href="../style.css?v=<?= time() ?>">
+  <!-- Bootstrap + DataTables -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <link href="https://cdn.datatables.net/v/bs5/dt-2.0.6/r-3.0.1/b-3.0.1/datatables.min.css" rel="stylesheet">
+  <style>
+    .badge-ECAS{background:#0d6efd}
+    .badge-Multiplicacion{background:#ffc107;color:#000}
+    .badge-Enraizamiento{background:#20c997}
+  </style>
   <script>
-    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
-    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
-    let START_TS         = <?= $nowTs           * 1000 ?>;
+    const SESSION_LIFETIME = <?= $sessionLifetime*1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset*1000 ?>;
+    let   START_TS         = <?= $nowTs*1000 ?>;
   </script>
 </head>
 <body>
-<div class="contenedor-pagina">
+<div class="contenedor-pagina d-flex flex-column min-vh-100">
   <header>
-    <div class="encabezado d-flex align-items-center">
-      <a class="navbar-brand me-3" href="#">
-        <img src="../logoplantulas.png" width="130" height="124" alt="Logo">
-      </a>
-      <h2>📋 Vista General de Tuppers</h2>
+    <div class="encabezado">
+      <a class="navbar-brand"><img src="../logoplantulas.png" alt="Logo" width="130" height="124"></a>
+      <h2>Inventario de Tuppers</h2>
     </div>
     <div class="barra-navegacion">
-
-      <div class="barra-navegacion">
-        <nav class="navbar bg-body-tertiary">
-          <div class="container-fluid">
-            <div class="Opciones-barra">
-              <button onclick="window.location.href='dashboard_supervisora.php'">
-              🏠 Volver al Inicio
-              </button>
-            </div>
+      <nav class="navbar bg-body-tertiary">
+        <div class="container-fluid">
+          <div class="Opciones-barra">
+            <button onclick="window.location.href='dashboard_supervisora.php'">🏠 Volver al Inicio</button>
           </div>
-        </nav>
-      </div>
-
-      <!-- Nav de Filtros compactos -->
-<nav class="filter-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2" style="overflow-x:auto;">
-  <div class="d-flex flex-column" style="min-width:120px;">
-    <label for="filtro-estado" class="small mb-1">Estado</label>
-    <select id="filtro-estado" name="estado" form="filtrosForm" class="form-select form-select-sm">
-      <option value="">— Todos Estados —</option>
-      <?php while($e = $estadosResult->fetch_assoc()): ?>
-        <option value="<?= $e['Estado_Tupper'] ?>" <?= $filter_estado === $e['Estado_Tupper'] ? 'selected':''?>>
-          <?= htmlspecialchars($e['Estado_Tupper']) ?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
-
-  <div class="d-flex flex-column" style="min-width:120px;">
-    <label for="filtro-etapa" class="small mb-1">Etapa</label>
-    <select id="filtro-etapa" name="etapa" form="filtrosForm" class="form-select form-select-sm">
-      <option value="">— Todas Etapas —</option>
-      <option value="ECAS"           <?= $filter_etapa==='ECAS'           ? 'selected':'' ?>>ECAS</option>
-      <option value="Multiplicación" <?= $filter_etapa==='Multiplicación' ? 'selected':'' ?>>Multiplicación</option>
-      <option value="Enraizamiento"  <?= $filter_etapa==='Enraizamiento'  ? 'selected':'' ?>>Enraizamiento</option>
-    </select>
-  </div>
-
-  <div class="d-flex flex-column" style="min-width:160px;">
-    <label for="filtro-variedad" class="small mb-1">Variedad</label>
-    <select id="filtro-variedad" name="variedad" form="filtrosForm" class="form-select form-select-sm">
-      <option value="">— Todas Variedades —</option>
-      <?php while($v = $variedadesResult->fetch_assoc()): ?>
-        <option value="<?= htmlspecialchars($v['Variedad'])?>" <?= $filter_variedad === $v['Variedad'] ? 'selected':''?>>
-          <?= htmlspecialchars($v['Variedad']) ?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
-
-  <div class="d-flex flex-column" style="min-width:160px;">
-    <label for="filtro-responsable" class="small mb-1">Responsable</label>
-    <select id="filtro-responsable" name="responsable" form="filtrosForm" class="form-select form-select-sm">
-      <option value="">— Todos Responsables —</option>
-      <?php while($o = $responsablesResult->fetch_assoc()): ?>
-        <option value="<?= htmlspecialchars($o['Responsable'])?>" <?= $filter_responsable === $o['Responsable'] ? 'selected':''?>>
-          <?= htmlspecialchars($o['Responsable']) ?>
-        </option>
-      <?php endwhile; ?>
-    </select>
-  </div>
-
-  <div class="d-flex flex-column" style="min-width:130px;">
-    <label for="filtro-fecha" class="small mb-1">Fecha</label>
-    <input id="filtro-fecha" type="date" name="fecha" form="filtrosForm"
-           class="form-control form-control-sm"
-           value="<?= htmlspecialchars($filter_fecha) ?>">
-  </div>
-
-  <button form="filtrosForm" type="submit" class="btn-inicio btn btn-success btn-sm ms-auto">
-    Filtrar
-  </button>
-
-  <a href="existencias_tuppers.php" class="btn btn-outline-secondary btn-sm">
-    Limpiar filtros
-  </a>
-</nav>
+        </div>
+      </nav>
     </div>
   </header>
 
-  <!-- Formulario oculto para filtros -->
-  <form id="filtrosForm" method="GET" class="d-none"></form>
-
-  <main class="container-fluid mt-3">
-    <div class="table-responsive">
-      <table class="table text-center">
-        <thead class="table-dark">
-          <tr>
-            <th>ID Lote</th>
-            <th>Variedad</th>
-            <th>Color</th>
-            <th>Fecha Ingreso</th>
-            <th>Cantidad Tuppers</th>
-            <th>Etapa</th>
-            <th>Subetapa ECAS</th>
-            <th>Responsable</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php if ($resultado->num_rows): ?>
-            <?php while ($row = $resultado->fetch_assoc()):
-              $clase = match($row['Etapa']) {
-                'ECAS'           => ($row['Subetapa_ECAS']==='Siembra' ? 'subetapa-siembra' : ($row['Subetapa_ECAS']==='División' ? 'subetapa-division' : 'etapa-ecas')),
-                'Multiplicación' => 'etapa-multiplicacion',
-                'Enraizamiento'  => 'etapa-enraizamiento',
-                default          => ''
-              };
-            ?>
-<tr class="<?= $clase ?>">
-  <td data-label="ID Lote"><?= $row['ID_Lote'] ?></td>
-  <td data-label="Variedad"><?= htmlspecialchars($row['Variedad']) ?></td>
-  <td data-label="Color"><?= htmlspecialchars($row['Color'] ?? 'N/A') ?></td>
-  <td data-label="Fecha Ingreso"><?= htmlspecialchars($row['Fecha_Ingreso']) ?></td>
-  <td data-label="Cantidad Tuppers"><?= $row['Tuppers_Existentes'] ?></td>
-  <td data-label="Etapa"><?= htmlspecialchars($row['Etapa']) ?></td>
-  <td data-label="Subetapa ECAS"><?= htmlspecialchars($row['Subetapa_ECAS'] ?? '-') ?></td>
-  <td data-label="Responsable"><?= htmlspecialchars($row['Responsable']) ?></td>
-  <td data-label="Estado"><?= htmlspecialchars($row['Estado_Tupper']) ?></td>
-</tr>
-            <?php endwhile; ?>
-          <?php else: ?>
-            <tr><td colspan="9">No se encontraron tuppers.</td></tr>
-          <?php endif; ?>
-        </tbody>
-      </table>
-    </div>
+  <main class="container-fluid mt-3 flex-grow-1">
+    <table id="tabla" class="table table-sm table-bordered table-hover w-100">
+      <thead class="table-light">
+        <tr>
+          <th>Etapa</th><th>Sub-etapa</th><th>Variedad</th><th>Fecha</th>
+<th class="text-end">Tuppers Llenos</th>
+<th class="text-end">Tuppers Disponibles</th>
+<th class="text-end">Brotes Disponibles</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </main>
 
-  <footer class="text-center py-3">&copy; 2025 PLANTAS AGRODEX</footer>
+  <footer class="text-center py-3 mt-5">&copy; <?= date('Y') ?> PLANTAS AGRODEX</footer>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Modal de advertencia de sesión + Ping por interacción que reinicia timers -->
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/v/bs5/dt-2.0.6/r-3.0.1/b-3.0.1/datatables.min.js"></script>
+<script>
+const data = <?= json_encode($rows, JSON_NUMERIC_CHECK) ?>;
+
+new DataTable('#tabla',{
+  data,
+  columns:[
+    {data:'Etapa',
+     render:d=>`<span class="badge badge-${d.replace(/ó/g,'o')}">${d}</span>`},
+
+    {data:'SubEtapa', defaultContent:'—'},
+
+    {data:null,       // Variedad
+     render:r=>`${r.Codigo_Variedad} – ${r.Nombre_Variedad}`},
+
+    {data:'Fecha',
+     render:d=>new Date(d).toLocaleDateString('es-MX')},
+
+    /* Usa LOS ALIAS CORRECTOS ▼ */
+    {data:'Tup_Llenos', className:'text-end'},   // antes ‘Llenos’
+    {data:'Tup_Disp',   className:'text-end'},   // antes ‘Disponibles’
+    {data:'Bro_Disp',   className:'text-end'}    // nuevo
+  ],
+
+  responsive:true,
+  rowGroup:{dataSrc:'Etapa'},
+  order:[[0,'asc'],[3,'desc']],
+  paging:false,
+  searching:true,
+  buttons:['copy','excel'],
+  language:{
+    search:'Buscar:',
+    searchPlaceholder:'Buscar…',
+    info:'Mostrando _START_ a _END_ de _TOTAL_ registros',
+    infoEmpty:'Sin registros para mostrar'
+  },
+  dom:'Bfrtip'
+});
+</script>
+
+<!-- Modal de expiración de sesión (el mismo que en tus otras páginas) -->
 <script>
 (function(){
-  let modalShown = false,
-      warningTimer,
-      expireTimer;
-
-  function showModal() {
-    modalShown = true;
-    const modalHtml = `
+  let modalShown=false,warningTimer,expireTimer;
+  function showModal(){
+    modalShown=true;
+    document.body.insertAdjacentHTML('beforeend',`
       <div id="session-warning" class="modal-overlay">
         <div class="modal-box">
           <p>Tu sesión va a expirar pronto. ¿Deseas mantenerla activa?</p>
           <button id="keepalive-btn" class="btn-keepalive">Seguir activo</button>
         </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    document.getElementById('keepalive-btn').addEventListener('click', () => {
-      cerrarModalYReiniciar(); // 🔥 Aquí aplicamos el cambio
-    });
+      </div>`);
+    document.getElementById('keepalive-btn').addEventListener('click',cerrarModalYReiniciar);
   }
-
-  function cerrarModalYReiniciar() {
-    // 🔥 Cerrar modal inmediatamente
-    const modal = document.getElementById('session-warning');
-    if (modal) modal.remove();
-    reiniciarTimers(); // Reinicia el temporizador visual
-
-    // 🔄 Enviar ping a la base de datos en segundo plano
-    fetch('../keepalive.php', { credentials: 'same-origin' })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== 'OK') {
-          alert('No se pudo extender la sesión');
-        }
-      })
-      .catch(() => {}); // Silenciar errores de red
+  function cerrarModalYReiniciar(){
+    document.getElementById('session-warning')?.remove();
+    reiniciarTimers();
+    fetch('../keepalive.php',{credentials:'same-origin'}).catch(()=>{});
   }
-
-  function reiniciarTimers() {
-    START_TS   = Date.now();
-    modalShown = false;
-    clearTimeout(warningTimer);
-    clearTimeout(expireTimer);
-    scheduleTimers();
+  function reiniciarTimers(){
+    START_TS=Date.now(); modalShown=false;
+    clearTimeout(warningTimer); clearTimeout(expireTimer); scheduleTimers();
   }
-
-  function scheduleTimers() {
-    const elapsed     = Date.now() - START_TS;
-    const warnAfter   = SESSION_LIFETIME - WARNING_OFFSET;
-    const expireAfter = SESSION_LIFETIME;
-
-    warningTimer = setTimeout(showModal, Math.max(warnAfter - elapsed, 0));
-
-    expireTimer = setTimeout(() => {
-      if (!modalShown) {
-        showModal();
-      } else {
-        window.location.href = '/plantulas/login.php?mensaje='
-          + encodeURIComponent('Sesión caducada por inactividad');
-      }
-    }, Math.max(expireAfter - elapsed, 0));
+  function scheduleTimers(){
+    const warnAfter=SESSION_LIFETIME-WARNING_OFFSET;
+    warningTimer=setTimeout(showModal,warnAfter);
+    expireTimer=setTimeout(()=>window.location.href=
+      '../login.php?mensaje='+encodeURIComponent('Sesión caducada por inactividad'),
+      SESSION_LIFETIME);
   }
-
-  ['click', 'keydown'].forEach(event => {
-    document.addEventListener(event, () => {
-      reiniciarTimers();
-      fetch('../keepalive.php', { credentials: 'same-origin' }).catch(() => {});
-    });
-  });
-
+  ['click','keydown'].forEach(evt=>document.addEventListener(evt,()=>{
+    reiniciarTimers(); fetch('../keepalive.php',{credentials:'same-origin'}).catch(()=>{});
+  }));
   scheduleTimers();
 })();
 </script>
-  
 </body>
 </html>

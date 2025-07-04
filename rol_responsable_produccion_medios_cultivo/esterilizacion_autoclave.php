@@ -681,10 +681,10 @@ $finalizados = $conn->query("
     <!-- ¿Cuántos lotes? -->
 <div id="lotes_section" class="card mb-4">
   <div class="card-header">
-    <h5 class="mb-0">¿Cuántos lotes?</h5>
+    <h5 class="mb-0">¿Cuántas tandas?</h5>
   </div>
   <div class="card-body d-flex align-items-center gap-2">
-    <input type="number" id="num_lotes" class="form-control" min="1" max="5" value="" placeholder="0" style="width:80px;">
+    <input type="number" id="num_lotes" class="form-control" min="1" max="7" value="" placeholder="0" style="width:80px;">
     <button type="button" id="confirm_lotes" class="btn btn-outline-secondary">Confirmar</button>
   </div>
   <div id="lotes_container" class="card-body pt-0"></div>

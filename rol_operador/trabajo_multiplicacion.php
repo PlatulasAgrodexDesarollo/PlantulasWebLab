@@ -416,7 +416,7 @@ if ($brotes_restantes <= 0 && $tuppers_restantes <= 0) {
 
     <div class="col-md-4">
       <label class="form-label">Número de Brotes Generados:</label>
-      <input type="number" class="form-control" name="numero_brotes" required min="1" max="250">
+      <input type="number" class="form-control" name="numero_brotes" required min="1" max="1000">
     </div>
 
     <div class="col-md-6">

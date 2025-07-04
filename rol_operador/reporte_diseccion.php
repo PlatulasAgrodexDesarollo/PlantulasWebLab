@@ -143,8 +143,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $editable) {
     }
 
     // Validaciones de campos
-    if ($brotes_iniciales < 1 || $brotes_iniciales > 600) {
-        $errores['brotes_iniciales'] = "Los brotes iniciales deben estar entre 1 y 600.";
+    if ($brotes_iniciales < 1 || $brotes_iniciales > 1000) {
+        $errores['brotes_iniciales'] = "Los brotes iniciales deben estar entre 1 y 1000.";
     }
     if ($num_brotes < 1 || $num_brotes > 1000) {
         $errores['numero_brotes'] = "Los brotes divididos deben estar entre 1 y 1000.";

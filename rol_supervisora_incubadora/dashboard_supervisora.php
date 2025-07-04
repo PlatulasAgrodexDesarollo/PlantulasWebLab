@@ -118,6 +118,12 @@ $nowTs           = time();
       <a href="limpieza_incubador.php">Ir al Registro</a>
     </div>
 
+<div class="card" data-card-id="registro-contaminaciones">
+  <h2>🦠 Contaminaciones</h2>
+  <p>Registrar tuppers contaminados en incubadora.</p>
+  <a href="contaminaciones.php">Registrar Perdidas</a>
+</div>
+
     <div class="card" data-card-id="rol-limpieza">
       <h2>🧹 Rol de Limpieza</h2>
       <p>Define las tareas de limpieza y asigna responsabilidades.</p>
