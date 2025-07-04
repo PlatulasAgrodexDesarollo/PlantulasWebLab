@@ -21,125 +21,93 @@ if ((int) $_SESSION['Rol'] !== 11) {
 }
 
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-$sessionLifetime = 60 * 40;   // 180 s
-$warningOffset   = 60 * 1;   // 60 s
-$nowTs           = time();
 
 //Procesar  búsqueda
 $busqueda = $_GET['busqueda'] ?? '';
-if  (!empty(($busqueda))){
-    $busquedaLike = "%busqueda%";
-    $sql = "SELECT 
-            DATE(p.Fecha_Siembra) AS Fecha,
-            CASE 
-                WHEN p.Origen = 'Multiplicacion' THEN 'Etapa 2 - Multiplicación'
-                ELSE 'Etapa 3 - Enraizamiento'
-            END AS Etapa,
-            v.Nombre_Variedad AS Variedad,
-            CONCAT(o.Nombre, ' ', o.Apellido_P) AS Operador,
-            COUNT(DISTINCT p.ID_Lote) AS Cantidad_Lotes,
-            SUM(p.Cantidad_Dividida) AS Total_Brotes,
-            SUM(p.Tuppers_Llenos) AS Total_Tuppers,
-            ROUND(SUM(p.Cantidad_Dividida)/SUM(p.Tuppers_Llenos), 1) AS Brotes_por_Tupper
-        FROM (
-            SELECT 
-                ID_Lote, 
-                Fecha_Siembra, 
-                Cantidad_Dividida, 
-                Tuppers_Llenos, 
-                Operador_Responsable, 
-                ID_Variedad,
-                'Multiplicacion' AS Origen
-            FROM multiplicacion
-            WHERE Estado_Revision = 'Consolidado'
-            
-            UNION ALL
-            
-            SELECT 
-                ID_Lote, 
-                Fecha_Siembra, 
-                Cantidad_Dividida, 
-                Tuppers_Llenos, 
-                Operador_Responsable, 
-                ID_Variedad,
-                'Enraizamiento' AS Origen
-            FROM enraizamiento
-            WHERE Estado_Revision = 'Consolidado'
-        ) AS p
-        JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
-        JOIN operadores o ON p.Operador_Responsable = o.ID_Operador
-        GROUP BY Fecha, Etapa, v.ID_Variedad, o.ID_Operador
-        ORDER BY Fecha DESC, Etapa, Variedad";
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        die("Error al preparar la consulta: " . $conn->error);
-    }
-    $stmt->execute();
-    $resultado = $stmt->get_result();
+$plantacion = [];
 
-    $plantacion = [];
-    while ($fila = $resultado->fetch_assoc()) {
-        $plantacion[] = $fila;
-    }
+$sqlBase = "
+    SELECT 
+        DATE(p.Fecha_Siembra) AS Fecha,
+        CASE 
+            WHEN p.Origen = 'Multiplicacion' THEN 'Etapa 2 - Multiplicación'
+            ELSE 'Etapa 3 - Enraizamiento'
+        END AS Etapa,
+        v.Nombre_Variedad AS Variedad,
+        CONCAT(o.Nombre, ' ', o.Apellido_P) AS Operador,
+        COUNT(DISTINCT p.ID_Lote) AS Cantidad_Lotes,
+        SUM(p.Cantidad_Dividida) AS Total_Brotes,
+        SUM(p.Tuppers_Llenos) AS Total_Tuppers,
+        ROUND(SUM(p.Cantidad_Dividida)/SUM(p.Tuppers_Llenos), 1) AS Brotes_por_Tupper
+    FROM (
+        SELECT 
+            ID_Lote, 
+            Fecha_Siembra, 
+            Cantidad_Dividida, 
+            Tuppers_Llenos, 
+            Operador_Responsable, 
+            ID_Variedad,
+            'Multiplicacion' AS Origen
+        FROM multiplicacion
+        WHERE Estado_Revision = 'Consolidado'
 
-    $stmt->close();
+        UNION ALL
 
-} else {
-    $sql = "SELECT 
-            DATE(p.Fecha_Siembra) AS Fecha,
-            CASE 
-                WHEN p.Origen = 'Multiplicacion' THEN 'Etapa 2 - Multiplicación'
-                ELSE 'Etapa 3 - Enraizamiento'
-            END AS Etapa,
-            v.Nombre_Variedad AS Variedad,
-            CONCAT(o.Nombre, ' ', o.Apellido_P) AS Operador,
-            COUNT(DISTINCT p.ID_Lote) AS Cantidad_Lotes,
-            SUM(p.Cantidad_Dividida) AS Total_Brotes,
-            SUM(p.Tuppers_Llenos) AS Total_Tuppers,
-            ROUND(SUM(p.Cantidad_Dividida)/SUM(p.Tuppers_Llenos), 1) AS Brotes_por_Tupper
-        FROM (
-            SELECT 
-                ID_Lote, 
-                Fecha_Siembra, 
-                Cantidad_Dividida, 
-                Tuppers_Llenos, 
-                Operador_Responsable, 
-                ID_Variedad,
-                'Multiplicacion' AS Origen
-            FROM multiplicacion
-            WHERE Estado_Revision = 'Consolidado'
-            
-            UNION ALL
-            
-            SELECT 
-                ID_Lote, 
-                Fecha_Siembra, 
-                Cantidad_Dividida, 
-                Tuppers_Llenos, 
-                Operador_Responsable, 
-                ID_Variedad,
-                'Enraizamiento' AS Origen
-            FROM enraizamiento
-            WHERE Estado_Revision = 'Consolidado'
-        ) AS p
-        JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
-        JOIN operadores o ON p.Operador_Responsable = o.ID_Operador
-        GROUP BY Fecha, Etapa, v.ID_Variedad, o.ID_Operador
-        ORDER BY Fecha DESC, Etapa, Variedad";
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        die("Error al preparar la consulta: " . $conn->error);
-    }
-    $stmt->execute();
-    $resultado = $stmt->get_result();
+        SELECT 
+            ID_Lote, 
+            Fecha_Siembra, 
+            Cantidad_Dividida, 
+            Tuppers_Llenos, 
+            Operador_Responsable, 
+            ID_Variedad,
+            'Enraizamiento' AS Origen
+        FROM enraizamiento
+        WHERE Estado_Revision = 'Consolidado'
+    ) AS p
+    JOIN variedades v ON p.ID_Variedad = v.ID_Variedad
+    JOIN operadores o ON p.Operador_Responsable = o.ID_Operador
+";
 
-    $plantacion = [];
-    while ($fila = $resultado->fetch_assoc()) {
-        $plantacion[] = $fila;
-    }
+$where = '';
+$params = [];
+$types = '';
 
-    $stmt->close();
+if (!empty($busqueda)) {
+    $where = "WHERE 
+        v.Nombre_Variedad LIKE ? OR 
+        CONCAT(o.Nombre, ' ', o.Apellido_P) LIKE ? OR 
+        DATE(p.Fecha_Siembra) LIKE ? OR 
+        (p.Origen = 'Multiplicacion' AND 'Etapa 2 - Multiplicación' LIKE ?) OR 
+        (p.Origen = 'Enraizamiento' AND 'Etapa 3 - Enraizamiento' LIKE ?)";
+
+    $params = ["%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%"];
+    $types = "sssss";
 }
+
+$sqlGroup = "
+    GROUP BY Fecha, Etapa, v.ID_Variedad, o.ID_Operador
+    ORDER BY Fecha DESC, Etapa, Variedad
+";
+
+$stmt = $conn->prepare($sqlBase . " " . $where . " " . $sqlGroup);
+if (!$stmt) {
+    die("Error al preparar la consulta: " . $conexion->error);
+}
+
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+
+$stmt->execute();
+$resultado = $stmt->get_result();
+
+while ($fila = $resultado->fetch_assoc()) {
+    $plantacion[] = $fila;
+}
+
+$stmt->close();
+
+
 
 ?>
 
@@ -150,6 +118,8 @@ if  (!empty(($busqueda))){
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Director General</title>
   <link rel="stylesheet" href="../style.css?v=<?= time() ?>" />
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
   <script>
     const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
@@ -184,6 +154,25 @@ if  (!empty(($busqueda))){
     </header>
 
 <main class="container mt-4">
+
+  <form method="GET" class="mb-4" style="max-width: 600px;">
+    <div class="input-group">
+      <span class="input-group-text bg-primary text-white">
+        <i class="bi bi-search"></i>
+      </span>
+      <input type="text" class="form-control" name="busqueda" id="busqueda"
+            placeholder="Buscar por variedad, operador, etapa o fecha..."
+            value="<?= htmlspecialchars($_GET['busqueda'] ?? '') ?>">
+      <button class="btn btn-outline-secondary" type="submit">
+        Buscar
+      </button>
+      <button class="btn btn-outline-danger" type="button" id="limpiar-busqueda">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+  </form>
+
+
     <div class="card card-lista">
         <h2></h2>
         <div class="table-responsive" >
@@ -242,6 +231,16 @@ if  (!empty(($busqueda))){
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const limpiarBtn = document.getElementById('limpiar-busqueda');
+    const inputBusqueda = document.getElementById('busqueda');
+
+    if (limpiarBtn && inputBusqueda) {
+      limpiarBtn.addEventListener('click', () => {
+        inputBusqueda.value = '';
+        window.location.href = window.location.pathname;
+      });
+    }
+
     const last = sessionStorage.getItem('lastCard');
     if (last) {
       const target = document.querySelector(`.dashboard-grid .card[data-card-id="${last}"]`);
@@ -313,6 +312,8 @@ if  (!empty(($busqueda))){
 
     scheduleTimers();
   })();
+
+
   </script>
 </body>
 </html>

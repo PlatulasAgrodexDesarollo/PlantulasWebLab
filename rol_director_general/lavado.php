@@ -1,0 +1,240 @@
+<?php
+// 0) Mostrar errores (solo en desarrollo)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// 1) Validar sesión y rol
+require_once __DIR__ . '/../session_manager.php';
+require_once __DIR__ . '/../db.php';
+
+if (!isset($_SESSION['ID_Operador'])) {
+    header('Location: ../login.php?mensaje=Debe iniciar sesión');
+    exit;
+}
+$ID_Operador = (int) $_SESSION['ID_Operador'];
+$volver1 = !empty($_SESSION['origin']) && $_SESSION['origin'] === 1;
+
+if ((int) $_SESSION['Rol'] !== 11) {
+    echo "<p class=\"error\">⚠️ Acceso denegado. Solo Director General.</p>";
+    exit;
+}
+
+// Procesar búsqueda
+$busqueda = $_GET['busqueda'] ?? '';
+$datos = [];
+
+$sqlBase = "
+    SELECT
+        m.ID_Multiplicacion AS ID,
+        m.ID_Lote,
+        l.ID_Variedad,
+        v.Nombre_Variedad,
+        COALESCE(m.Tuppers_Reservados_Lavado, 0) AS Cantidad,
+        'Multiplicación' AS Etapa,
+        m.Fecha_Siembra,
+        o.Nombre AS Operador,
+        CASE 
+            WHEN COALESCE(m.Tuppers_Reservados_Lavado, 0) = 0 THEN 'No requiere lavado'
+            WHEN COALESCE(m.Tuppers_Reservados_Lavado, 0) > 0 THEN 'Por Lavar'
+            ELSE 'Estado desconocido'
+        END AS Estado
+    FROM
+        multiplicacion m
+    LEFT JOIN lotes l ON m.ID_Lote = l.ID_Lote
+    LEFT JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
+    LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
+
+    UNION ALL
+
+    SELECT
+        e.ID_Enraizamiento AS ID,
+        e.ID_Lote,
+        l.ID_Variedad,
+        v.Nombre_Variedad,
+        COALESCE(e.Tuppers_Organizados_Lavado, 0) AS Cantidad,
+        'Enraizamiento' AS Etapa,
+        e.Fecha_Siembra,
+        o.Nombre AS Operador,
+        CASE 
+            WHEN COALESCE(e.Tuppers_Organizados_Lavado, 0) = 0 THEN 'No requiere lavado'
+            WHEN COALESCE(e.Tuppers_Organizados_Lavado, 0) > 0 THEN 'Por Lavar'
+            ELSE 'Estado desconocido'
+        END AS Estado
+    FROM
+        enraizamiento e
+    LEFT JOIN lotes l ON e.ID_Lote = l.ID_Lote
+    LEFT JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
+    LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
+";
+
+if (!empty($busqueda)) {
+    $where = " WHERE 
+        Nombre_Variedad LIKE ? OR 
+        Operador LIKE ? OR 
+        DATE(Fecha_Siembra) LIKE ? OR 
+        Etapa LIKE ? OR
+        Estado LIKE ?";
+    
+    $params = ["%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%"];
+    $types = "sssss";
+} else {
+    $where = '';
+    $params = [];
+    $types = '';
+}
+
+$sqlOrder = " ORDER BY Fecha_Siembra DESC, Etapa, Nombre_Variedad";
+
+$stmt = $conn->prepare($sqlBase . $where . $sqlOrder);
+if (!$stmt) {
+    die("Error al preparar la consulta: " . $conn->error);
+}
+
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+
+$stmt->execute();
+$resultado = $stmt->get_result();
+
+while ($fila = $resultado->fetch_assoc()) {
+    $datos[] = $fila;
+}
+
+$stmt->close();
+?>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Director General - Producción</title>
+  <link rel="stylesheet" href="../style.css?v=<?= time() ?>" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <script>
+    const SESSION_LIFETIME = <?= $sessionLifetime * 1000 ?>;
+    const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
+    let START_TS           = <?= $nowTs           * 1000 ?>;
+  </script>
+</head>
+<body>
+  <div class="contenedor-pagina panel-admin">
+    <header>
+      <div class="encabezado">
+        <img src="../logoplantulas.png"
+             alt="Logo"
+             width="130" height="124"
+             style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
+             <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
+        <div>
+          <h2>Producción</h2>
+          <p>Control de lavado - Etapas 2 y 3</p>
+        </div>
+      </div>
+
+      <div class="barra-navegacion">
+        <nav class="navbar bg-body-tertiary">
+          <div class="container-fluid">
+            <div class="Opciones-barra">
+              <button onclick="location.href='dashboard_director.php'">🏠 Volver al Inicio</button>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container mt-4">
+      <form method="GET" class="mb-4" style="max-width: 600px;">
+        <div class="input-group">
+          <span class="input-group-text bg-primary text-white">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" class="form-control" name="busqueda" id="busqueda"
+                placeholder="Buscar por variedad, operador, etapa o estado..."
+                value="<?= htmlspecialchars($busqueda) ?>">
+          <button class="btn btn-outline-secondary" type="submit">
+            Buscar
+          </button>
+          <button class="btn btn-outline-danger" type="button" id="limpiar-busqueda">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </form>
+
+      <div class="card card-lista">
+        <h2>Control de Lavado</h2>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover">
+            <thead class="sticky-top">
+              <tr>
+                <th>ID</th>
+                <th>Fecha Siembra</th>
+                <th>Etapa</th>
+                <th>Variedad</th>
+                <th>Operador</th>
+                <th>Tuppers</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($datos)): ?>
+                <tr>
+                  <td colspan="7" class="text-center py-4">
+                    <i class="bi bi-inbox text-muted" style="font-size: 2rem;"></i>
+                    <p class="mt-2">No hay registros de lavado</p>
+                  </td>
+                </tr>
+              <?php else: ?>
+                <?php foreach ($datos as $fila): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($fila['ID']) ?></td>
+                    <td><?= htmlspecialchars($fila['Fecha_Siembra']) ?></td>
+                    <td><?= htmlspecialchars($fila['Etapa'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($fila['Nombre_Variedad'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($fila['Operador'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($fila['Cantidad']) ?></td>
+                    <td>
+                      <span class="badge 
+                        <?= match($fila['Estado']) {
+                            'Por Lavar' => 'bg-warning text-dark',
+                            'No requiere lavado' => 'bg-secondary',
+                            default => 'bg-light text-dark'
+                        } ?>">
+                        <?= htmlspecialchars($fila['Estado']) ?>
+                      </span>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
+    </footer>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const limpiarBtn = document.getElementById('limpiar-busqueda');
+      const inputBusqueda = document.getElementById('busqueda');
+
+      if (limpiarBtn && inputBusqueda) {
+        limpiarBtn.addEventListener('click', () => {
+          inputBusqueda.value = '';
+          window.location.href = window.location.pathname;
+        });
+      }
+    });
+  </script>
+</body>
+</html>

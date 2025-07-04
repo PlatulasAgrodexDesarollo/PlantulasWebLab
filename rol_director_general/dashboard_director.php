@@ -21,7 +21,7 @@ if ((int) $_SESSION['Rol'] !== 11) {
 }
 
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-$sessionLifetime = 60 * 40;   // 180 s
+$sessionLifetime = 600 * 40;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 ?>
@@ -85,10 +85,10 @@ $nowTs           = time();
       </a>
     </div>
 
-    <div class="card" data-card-id="FALTA ID">
+    <div class="card" data-card-id="lavado-planta">
       <h2>🫧 Lavado de planta</h2>
-      <p>Reporte de Lavado por Semana.</p>
-      <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
+      <p>Reporte de Lavado por etapa.</p>
+      <a href="lavado.php" onclick="rememberCard('lavado-planta')">
         Ver resumen
       </a>
     </div>
