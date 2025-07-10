@@ -21,6 +21,9 @@ if ((int) $_SESSION['Rol'] !== 11) {
 }
 
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+$sessionLifetime = 600 * 40;   // 180 s
+$warningOffset   = 60 * 1;   // 60 s
+$nowTs           = time();
 
 //Procesar  búsqueda
 $busqueda = $_GET['busqueda'] ?? '';
@@ -161,6 +164,9 @@ arsort($totalesPorVariedad);
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
     let START_TS           = <?= $nowTs           * 1000 ?>;
   </script>
+  <!-- librería jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <div class="contenedor-pagina panel-admin">
@@ -415,6 +421,119 @@ arsort($totalesPorVariedad);
 
     scheduleTimers();
   })();
+
+  // Inicializar jsPDF
+  const { jsPDF } = window.jspdf;
+
+  // Función para generar el PDF
+  function generarPDF() {
+      // Crear instancia de jsPDF
+      const doc = new jsPDF({
+          orientation: 'landscape'
+      });
+      
+      // Título del documento
+      const title = "Reporte de Producción - Plantación";
+      const date = new Date().toLocaleDateString();
+      const subtitle = `Generado el ${date}`;
+      
+      // Agregar título
+      doc.setFontSize(18);
+      doc.text(title, 14, 20);
+      doc.setFontSize(12);
+      doc.text(subtitle, 14, 28);
+      
+      // Agregar resumenes
+      doc.setFontSize(14);
+      doc.text("Resumen General", 14, 40);
+      
+      // Datos del resumen general
+      const generalData = [
+          ["Total Producción", "<?= number_format($totalGeneralBrotes) ?> brotes"],
+          ["Total Tuppers", "<?= number_format($totalGeneralTuppers) ?>"],
+          ["Promedio", "<?= $totalGeneralTuppers > 0 ? round($totalGeneralBrotes / $totalGeneralTuppers, 1) : 0 ?> brotes/tupper"]
+      ];
+      
+      doc.autoTable({
+          startY: 45,
+          head: [['Métrica', 'Valor']],
+          body: generalData,
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185] }
+      });
+      
+      // Agregar tabla principal
+      doc.setFontSize(14);
+      doc.text("Detalle de Producción", 14, doc.autoTable.previous.finalY + 15);
+      
+      // Preparar datos de la tabla
+      const tableData = [
+          ['Fecha', 'Etapa', 'Variedad', 'Operador', 'Lotes', 'Brotes', 'Tuppers', 'Brotes/Tupper']
+      ];
+      
+      <?php foreach ($plantacion as $fila): ?>
+          tableData.push([
+              '<?= htmlspecialchars($fila['Fecha']) ?>',
+              '<?= htmlspecialchars($fila['Etapa']) ?>',
+              '<?= htmlspecialchars($fila['Variedad']) ?>',
+              '<?= htmlspecialchars($fila['Operador']) ?>',
+              '<?= htmlspecialchars($fila['Cantidad_Lotes']) ?>',
+              '<?= htmlspecialchars($fila['Total_Brotes']) ?>',
+              '<?= htmlspecialchars($fila['Total_Tuppers']) ?>',
+              '<?= htmlspecialchars($fila['Brotes_por_Tupper']) ?>'
+          ]);
+      <?php endforeach; ?>
+      
+      // Crear tabla
+      doc.autoTable({
+          startY: doc.autoTable.previous.finalY + 20,
+          head: [tableData[0]],
+          body: tableData.slice(1),
+          theme: 'grid',
+          headStyles: { fillColor: [41, 128, 185] },
+          margin: { horizontal: 5 },
+          styles: { fontSize: 8 },
+          columnStyles: {
+              0: { cellWidth: 20 },
+              1: { cellWidth: 30 },
+              2: { cellWidth: 30 },
+              3: { cellWidth: 30 },
+              4: { cellWidth: 15 },
+              5: { cellWidth: 15 },
+              6: { cellWidth: 15 },
+              7: { cellWidth: 20 }
+          }
+      });
+      
+      // Guardar el PDF
+      doc.save(`Reporte_Produccion_${date.replace(/\//g, '-')}.pdf`);
+  }
+
+  // Agregar botón de generación de PDF
+  document.addEventListener('DOMContentLoaded', function() {
+      // Crear botón
+        const pdfBtn = document.createElement('button');
+        pdfBtn.className = 'btn btn-danger ms-2';
+        pdfBtn.type = 'button'; // Importante para que no envíe el formulario
+        pdfBtn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Generar PDF';
+        pdfBtn.onclick = generarPDF;
+        
+        // Insertar el botón en el grupo de inputs de búsqueda
+        const searchForm = document.querySelector('form.mb-4');
+        if (searchForm) {
+            const inputGroup = searchForm.querySelector('.input-group');
+            if (inputGroup) {
+                // Insertar después del botón de limpiar
+                const clearBtn = inputGroup.querySelector('#limpiar-busqueda');
+                if (clearBtn) {
+                    clearBtn.insertAdjacentElement('afterend', pdfBtn);
+                } else {
+                    // Si no encuentra el botón de limpiar, lo añade al final
+                    inputGroup.appendChild(pdfBtn);
+                }
+            }
+        }
+    });
 
 
   </script>

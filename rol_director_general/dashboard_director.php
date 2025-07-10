@@ -21,11 +21,7 @@ if ((int) $_SESSION['Rol'] !== 11) {
 }
 
 // 2) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
-<<<<<<< HEAD
 $sessionLifetime = 600 * 40;   // 180 s
-=======
-$sessionLifetime = 60 * 3;   // 180 s
->>>>>>> 05269a416dc3906feecf4d5667b156ca4e3082a2
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 ?>
@@ -55,11 +51,7 @@ $nowTs           = time();
              <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
           <h2>Director General</h2>
-<<<<<<< HEAD
           <p>Visualización de producción global.</p>
-=======
-          <p>Visualización de producción global por variedad.</p>
->>>>>>> 05269a416dc3906feecf4d5667b156ca4e3082a2
         </div>
       </div>
 
@@ -74,13 +66,8 @@ $nowTs           = time();
       </div>
     </header>
 
-<<<<<<< HEAD
 <main class="container mt-4">
   
-=======
-<main>
-  <h3 class="mt-5 mb-3">📊 Panel Director General</h3>
->>>>>>> 05269a416dc3906feecf4d5667b156ca4e3082a2
   <section class="dashboard-grid">
     <div class="card" data-card-id="resumen-director">
       <h2>📊 Proyección semanal</h2>
@@ -89,7 +76,6 @@ $nowTs           = time();
         Ver resumen
       </a>
     </div>
-<<<<<<< HEAD
 
     <div class="card" data-card-id="produccion">
       <h2>🌱 Produccion</h2>
@@ -115,18 +101,16 @@ $nowTs           = time();
       </a>
     </div>
 
-    <div class="card" data-card-id="FALTA ID">
-      <h2>🧪 Preparación de medios de cultivo y estetilizacion</h2>
-      <p>A REVISAR.</p>
-      <a href="FALTA ARCHIVO" onclick="rememberCard('FATAL ID')">
+    <div class="card" data-card-id="perdias-plantas">
+      <h2>🪾 Mesmas</h2>
+      <p>Revisa las perdidas de los  diferentes puntos del sistema.</p>
+      <a href="perdidas.php" onclick="rememberCard('perdias-plantas')">
         Ver resumen
       </a>
     </div>
 
 
 
-=======
->>>>>>> 05269a416dc3906feecf4d5667b156ca4e3082a2
   </section>
 </main>
 

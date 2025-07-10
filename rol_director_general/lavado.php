@@ -119,6 +119,9 @@ $stmt->close();
     const WARNING_OFFSET   = <?= $warningOffset   * 1000 ?>;
     let START_TS           = <?= $nowTs           * 1000 ?>;
   </script>
+  <!-- Librerías para generar PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <div class="contenedor-pagina panel-admin">
@@ -234,6 +237,131 @@ $stmt->close();
           window.location.href = window.location.pathname;
         });
       }
+    });
+    // Función para generar el PDF
+    function generarPDFLavado() {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm'
+            });
+            
+            // Título del documento
+            const title = "Reporte de Control de Lavado";
+            const date = new Date().toLocaleDateString();
+            const subtitle = `Generado el ${date}`;
+            
+            // Agregar título
+            doc.setFontSize(18);
+            doc.text(title, 105, 15, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text(subtitle, 105, 22, { align: 'center' });
+            
+            // Preparar datos de la tabla
+            const tableData = [
+                ['ID', 'Fecha Siembra', 'Etapa', 'Variedad', 'Operador', 'Tuppers', 'Estado']
+            ];
+            
+            <?php foreach ($datos as $fila): ?>
+                tableData.push([
+                    '<?= htmlspecialchars($fila['ID']) ?>',
+                    '<?= htmlspecialchars($fila['Fecha_Siembra']) ?>',
+                    '<?= htmlspecialchars($fila['Etapa'] ?? '') ?>',
+                    '<?= htmlspecialchars($fila['Nombre_Variedad'] ?? '') ?>',
+                    '<?= htmlspecialchars($fila['Operador'] ?? '') ?>',
+                    '<?= htmlspecialchars($fila['Cantidad']) ?>',
+                    '<?= htmlspecialchars($fila['Estado']) ?>'
+                ]);
+            <?php endforeach; ?>
+            
+            // Crear tabla
+            doc.autoTable({
+                startY: 30,
+                head: [tableData[0]],
+                body: tableData.slice(1),
+                theme: 'grid',
+                headStyles: { 
+                    fillColor: [41, 128, 185],
+                    textColor: [255, 255, 255]
+                },
+                margin: { horizontal: 14 },
+                styles: { 
+                    fontSize: 8,
+                    cellPadding: 2
+                },
+                columnStyles: {
+                    0: { cellWidth: 15 },
+                    1: { cellWidth: 20 },
+                    2: { cellWidth: 20 },
+                    3: { cellWidth: 30 },
+                    4: { cellWidth: 30 },
+                    5: { cellWidth: 15 },
+                    6: { cellWidth: 25 }
+                },
+                didDrawPage: function(data) {
+                    // Agregar número de página
+                    const pageCount = doc.internal.getNumberOfPages();
+                    doc.setFontSize(10);
+                    doc.text(`Página ${data.pageNumber} de ${pageCount}`, 200, 200, {
+                        align: 'right'
+                    });
+                }
+            });
+            
+            // Guardar el PDF
+            doc.save(`Control_Lavado_${date.replace(/\//g, '-')}.pdf`);
+            
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            alert('Error al generar el PDF: ' + error.message);
+        }
+    }
+
+    // Configurar el botón de PDF en el área de búsqueda
+    document.addEventListener('DOMContentLoaded', function() {
+        // Crear botón
+        const pdfBtn = document.createElement('button');
+        pdfBtn.className = 'btn btn-danger ms-2';
+        pdfBtn.type = 'button';
+        pdfBtn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Generar PDF';
+        
+        // Agregar evento con feedback visual
+        pdfBtn.addEventListener('click', function() {
+            // Cambiar apariencia durante la generación
+            const originalHTML = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generando...';
+            this.disabled = true;
+            
+            // Pequeño retraso para permitir la actualización visual
+            setTimeout(() => {
+                try {
+                    generarPDFLavado();
+                } catch (error) {
+                    console.error('Error al generar PDF:', error);
+                    alert('Error al generar el PDF: ' + error.message);
+                } finally {
+                    // Restaurar botón
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                }
+            }, 100);
+        });
+        
+        // Insertar el botón en el formulario de búsqueda
+        const searchForm = document.querySelector('form.mb-4');
+        if (searchForm) {
+            const inputGroup = searchForm.querySelector('.input-group');
+            if (inputGroup) {
+                // Insertar después del botón de limpiar
+                const clearBtn = inputGroup.querySelector('#limpiar-busqueda');
+                if (clearBtn) {
+                    clearBtn.insertAdjacentElement('afterend', pdfBtn);
+                } else {
+                    inputGroup.appendChild(pdfBtn);
+                }
+            }
+        }
     });
   </script>
 </body>
