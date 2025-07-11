@@ -200,7 +200,7 @@ foreach ($areas_disponibles as $index => $area) {
 
       <div class="section">
         <h3>📂 Ver historial de asignaciones</h3>
-        <button onclick="window.location.href='historial_limpieza.php'">📋 Ir al historial</button>
+        <button onclick="window.location.href='historial_completo_incubadora.php'">📋 Ir al historial</button>
       </div>
     </main>
 

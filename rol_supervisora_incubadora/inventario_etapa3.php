@@ -31,7 +31,6 @@ $sql = "
     E.Fecha_Siembra,
     E.Cantidad_Dividida,
     E.Tuppers_Llenos,
-    E.Tuppers_Desocupados,
     CONCAT(O.Nombre, ' ', O.Apellido_P, ' ', O.Apellido_M) AS operador,
     E.Estado_Revision
   FROM enraizamiento E
@@ -99,7 +98,6 @@ if (!$result) {
               <th>Fecha Siembra</th>
               <th>Cantidad Dividida</th>
               <th>Tuppers Llenos</th>
-              <th>Tuppers Vacíos</th>
               <th>Operador</th>
               <th>Estado</th>
             </tr>
@@ -112,7 +110,6 @@ if (!$result) {
               <td data-label="Fecha Siembra"><?= htmlspecialchars($row['Fecha_Siembra']) ?></td>
               <td data-label="Cantidad"><?= htmlspecialchars($row['Cantidad_Dividida']) ?></td>
               <td data-label="Llenos"><?= htmlspecialchars($row['Tuppers_Llenos']) ?></td>
-              <td data-label="Vacíos"><?= htmlspecialchars($row['Tuppers_Desocupados']) ?></td>
               <td data-label="Operador"><?= htmlspecialchars($row['operador']) ?></td>
               <td data-label="Estado">
                 <?php if ($row['Estado_Revision'] === 'Consolidado'): ?>

@@ -98,7 +98,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div class="input-group">
         <label for="usuario">Usuario</label>
-        <input type="text" id="usuario" name="usuario" value="<?= htmlspecialchars($usuario) ?>" required autofocus>
+        <input type="text"
+       id="usuario"
+       name="usuario"
+       value="<?= htmlspecialchars($usuario) ?>"
+       required
+       autofocus
+       oninput="this.value = this.value.toLowerCase();"
+       style="text-transform: lowercase;">
       </div>
 
 <div class="input-group">
