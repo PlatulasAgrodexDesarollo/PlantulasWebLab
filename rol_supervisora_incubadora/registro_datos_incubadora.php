@@ -27,16 +27,48 @@ $nowTs           = time();
 $mensaje = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     date_default_timezone_set('America/Mexico_City');
-    $fecha = date('Y-m-d H:i:s');
-    $turno      = $_POST['turno'];
-    $temp_inf   = $_POST['temperatura_inferior'];
-    $temp_med   = $_POST['temperatura_media'];
-    $temp_sup   = $_POST['temperatura_superior'];
-    $hum_sup    = $_POST['humedad_superior'];
-    $hum_inf    = $_POST['humedad_inferior'];
-    $operador   = $_SESSION['ID_Operador'];
+    $fecha     = date('Y-m-d H:i:s');
+    $turno     = $_POST['turno'];
+    $temp_inf  = $_POST['temperatura_inferior'];
+    $temp_med  = $_POST['temperatura_media'];
+    $temp_sup  = $_POST['temperatura_superior'];
+    $temp_max  = $_POST['temperatura_max'];
+    $temp_min  = $_POST['temperatura_min'];
+    $hum_sup   = $_POST['humedad_superior'];
+    $hum_med   = $_POST['humedad_media'];
+    $hum_inf   = $_POST['humedad_inferior'];
+    $hum_max   = $_POST['humedad_max'];
+    $hum_min   = $_POST['humedad_min'];
+    $operador  = $_SESSION['ID_Operador'];
 
-    // Validar que ese turno aún no se haya registrado hoy
+    // Validaciones de coherencia
+    $errores = [];
+
+    if ($temp_max < max($temp_sup, $temp_med, $temp_inf)) {
+        $errores[] = "⚠️ La temperatura máxima debe ser mayor o igual a las temperaturas registradas.";
+    }
+
+    if ($temp_min > min($temp_sup, $temp_med, $temp_inf)) {
+        $errores[] = "⚠️ La temperatura mínima debe ser menor o igual a las temperaturas registradas.";
+    }
+
+    if ($temp_min > $temp_max) {
+        $errores[] = "⚠️ La temperatura mínima no puede ser mayor que la temperatura máxima.";
+    }
+
+    if ($hum_max < max($hum_sup, $hum_inf)) {
+        $errores[] = "⚠️ La humedad máxima debe ser mayor o igual a las humedades registradas.";
+    }
+
+    if ($hum_min > min($hum_sup, $hum_inf)) {
+        $errores[] = "⚠️ La humedad mínima debe ser menor o igual a las humedades registradas.";
+    }
+
+    if ($hum_min > $hum_max) {
+        $errores[] = "⚠️ La humedad mínima no puede ser mayor que la humedad máxima.";
+    }
+
+    // Verificar si ya existe el turno registrado hoy
     $verifica = $conn->prepare("
         SELECT 1
           FROM registro_parametros_incubadora
@@ -49,26 +81,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($verifica->num_rows > 0) {
         $mensaje = "⚠️ Ya existe un registro para el turno '$turno' hoy.";
+    } elseif (!empty($errores)) {
+        $mensaje = implode('<br>', $errores);
     } else {
         // Registrar con fecha y hora exacta del sistema
-        $stmt = $conn->prepare("
-            INSERT INTO registro_parametros_incubadora
-              (fecha_hora_registro, turno, id_operador,
-               temperatura_superior, temperatura_media, temperatura_inferior,
-               humedad_superior, humedad_inferior)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->bind_param(
-            'ssiddidd',
-            $fecha,
-            $turno,
-            $operador,
-            $temp_sup,
-            $temp_med,
-            $temp_inf,
-            $hum_sup,
-            $hum_inf
-        );
+$stmt = $conn->prepare("
+    INSERT INTO registro_parametros_incubadora
+      (fecha_hora_registro, turno, id_operador,
+       temperatura_superior, temperatura_media, temperatura_inferior,
+       temperatura_max, temperatura_min,
+       humedad_superior, humedad_media, humedad_inferior,
+       humedad_max, humedad_min)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+
+$stmt->bind_param(
+    'ssidddddddddd',
+    $fecha,
+    $turno,
+    $operador,
+    $temp_sup,
+    $temp_med,
+    $temp_inf,
+    $temp_max,
+    $temp_min,
+    $hum_sup,
+    $hum_med, 
+    $hum_inf,
+    $hum_max,
+    $hum_min
+);
+
         if ($stmt->execute()) {
             $mensaje = '✅ Registro guardado exitosamente';
         } else {
@@ -80,10 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 4) Obtener solo los registros de hoy
 $result = $conn->query("
-    SELECT r.fecha_hora_registro, r.turno,
-           r.temperatura_inferior, r.temperatura_media, r.temperatura_superior,
-           r.humedad_superior, r.humedad_inferior,
-           CONCAT(o.Nombre, ' ', o.Apellido_P, ' ', o.Apellido_M) AS operador
+SELECT r.fecha_hora_registro, r.turno,
+       r.temperatura_inferior, r.temperatura_media, r.temperatura_superior,
+       r.temperatura_max, r.temperatura_min,
+       r.humedad_superior, r.humedad_inferior,
+       r.humedad_max, r.humedad_media, r.humedad_min,
+       CONCAT(o.Nombre, ' ', o.Apellido_P, ' ', o.Apellido_M) AS operador
     FROM registro_parametros_incubadora r
     INNER JOIN operadores o ON r.id_operador = o.ID_Operador
     WHERE DATE(r.fecha_hora_registro) = CURDATE()
@@ -225,7 +270,19 @@ $result = $conn->query("
                 <span class="input-group-text">%</span>
               </div>
             </div>
-
+<div class="form-group">
+  <label class="form-label">Humedad Relativa (Repisa Media)</label>
+  <div class="input-group">
+    <input type="number"
+           name="humedad_media"
+           class="form-control"
+           step="0.01" min="20" max="70"
+           pattern="\d{1,2}(\.\d{1,2})?"
+           placeholder="0.00"
+           required>
+    <span class="input-group-text">%</span>
+  </div>
+</div>
             <div class="form-group">
               <label class="form-label">Humedad Relativa (Repisa Inferior)</label>
               <div class="input-group">
@@ -239,6 +296,37 @@ $result = $conn->query("
                 <span class="input-group-text">%</span>
               </div>
             </div>
+<div class="form-group">
+  <label class="form-label">Temperatura Máxima General</label>
+  <div class="input-group">
+    <input type="number" name="temperatura_max" class="form-control" step="0.01" min="15" max="50" required>
+    <span class="input-group-text">°C</span>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="form-label">Temperatura Mínima General</label>
+  <div class="input-group">
+    <input type="number" name="temperatura_min" class="form-control" step="0.01" min="15" max="50" required>
+    <span class="input-group-text">°C</span>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="form-label">Humedad Máxima General</label>
+  <div class="input-group">
+    <input type="number" name="humedad_max" class="form-control" step="0.01" min="20" max="100" required>
+    <span class="input-group-text">%</span>
+  </div>
+</div>
+
+<div class="form-group">
+  <label class="form-label">Humedad Mínima General</label>
+  <div class="input-group">
+    <input type="number" name="humedad_min" class="form-control" step="0.01" min="10" max="100" required>
+    <span class="input-group-text">%</span>
+  </div>
+</div>
 
             <div class="d-grid gap-2 mt-4">
               <button type="submit" class="btn-submit">Guardar</button>
@@ -259,7 +347,12 @@ $result = $conn->query("
                   <th>Med. (°C)</th>
                   <th>Sup. (°C)</th>
                   <th>Hum. Sup. (%)</th>
+                  <th>Hum. Med. (%)</th>
                   <th>Hum. Inf. (%)</th>
+                  <th>Temp Max (°C)</th>
+                  <th>Temp Min (°C)</th>
+                  <th>Hum Max (%)</th>
+                  <th>Hum Min (%)</th>
                   <th>Registrado por:</th>
                 </tr>
               </thead>
@@ -272,7 +365,12 @@ $result = $conn->query("
   <td data-label="Med. (°C)"><?= htmlspecialchars($row['temperatura_media']) ?></td>
   <td data-label="Sup. (°C)"><?= htmlspecialchars($row['temperatura_superior']) ?></td>
   <td data-label="Hum. Sup. (%)"><?= htmlspecialchars($row['humedad_superior']) ?></td>
+  <td><?= htmlspecialchars($row['humedad_media']) ?></td>
   <td data-label="Hum. Inf. (%)"><?= htmlspecialchars($row['humedad_inferior']) ?></td>
+  <td><?= htmlspecialchars($row['temperatura_max']) ?></td>
+<td><?= htmlspecialchars($row['temperatura_min']) ?></td>
+<td><?= htmlspecialchars($row['humedad_max']) ?></td>
+<td><?= htmlspecialchars($row['humedad_min']) ?></td>
   <td data-label="Registrado por"><?= htmlspecialchars($row['operador']) ?></td>
 </tr>
                 <?php endwhile; ?>
@@ -286,6 +384,129 @@ $result = $conn->query("
     <p>&copy; 2025 PLANTAS AGRODEX. Todos los derechos reservados.</p>
   </footer>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Campos de temperatura
+  const tempInf = document.querySelector('[name="temperatura_inferior"]');
+  const tempMed = document.querySelector('[name="temperatura_media"]');
+  const tempSup = document.querySelector('[name="temperatura_superior"]');
+  const tempMax = document.querySelector('[name="temperatura_max"]');
+  const tempMin = document.querySelector('[name="temperatura_min"]');
+
+  // Campos de humedad
+  const humInf = document.querySelector('[name="humedad_inferior"]');
+  const humMed = document.querySelector('[name="humedad_media"]');
+  const humSup = document.querySelector('[name="humedad_superior"]');
+  const humMax = document.querySelector('[name="humedad_max"]');
+  const humMin = document.querySelector('[name="humedad_min"]');
+
+  const allInputs = [
+    tempInf, tempMed, tempSup, tempMax, tempMin,
+    humInf, humMed, humSup, humMax, humMin
+  ];
+
+  // Inicialmente desactivar campos de max/min
+  tempMax.disabled = true;
+  tempMin.disabled = true;
+  humMax.disabled = true;
+  humMin.disabled = true;
+
+  // Verifica si todos los campos base están completos
+  function estaCompleto(arr) {
+    return arr.every(i => i.value !== '' && !isNaN(parseFloat(i.value)));
+  }
+
+  // Activar/desactivar campos máximos y mínimos según disponibilidad
+  function actualizarEstadoCampos() {
+    const tempBases = [tempInf, tempMed, tempSup];
+    const humBases = [humInf, humMed, humSup];
+
+    const tempsOk = estaCompleto(tempBases);
+    const humsOk = estaCompleto(humBases);
+
+    tempMax.disabled = tempMin.disabled = !tempsOk;
+    humMax.disabled = humMin.disabled = !humsOk;
+
+    if (!tempsOk) {
+      tempMax.value = '';
+      tempMin.value = '';
+    }
+    if (!humsOk) {
+      humMax.value = '';
+      humMin.value = '';
+    }
+  }
+
+  // Corregir en vivo valores mayores a 100
+  const camposLimite = [
+    'temperatura_inferior', 'temperatura_media', 'temperatura_superior',
+    'temperatura_max', 'temperatura_min',
+    'humedad_inferior', 'humedad_media', 'humedad_superior',
+    'humedad_max', 'humedad_min'
+  ];
+
+  camposLimite.forEach(nombre => {
+    const campo = document.querySelector(`[name="${nombre}"]`);
+    if (!campo) return;
+
+    campo.addEventListener('input', () => {
+      const valor = parseFloat(campo.value);
+      if (!isNaN(valor)) {
+        if (valor > 100) campo.value = 100;
+        if (valor < 0) campo.value = 0;
+      }
+      actualizarEstadoCampos();
+    });
+  });
+
+  // Corrección lógica al salir de campos max/min
+  function safeGetValues(inputs) {
+    const values = inputs.map(i => parseFloat(i.value));
+    return values.every(v => !isNaN(v)) ? values : null;
+  }
+
+  tempMax.addEventListener('blur', () => {
+    const temps = safeGetValues([tempInf, tempMed, tempSup]);
+    const tmax = parseFloat(tempMax.value);
+    if (!temps || isNaN(tmax)) return;
+
+    const max = Math.max(...temps);
+    if (tmax < max) tempMax.value = max;
+  });
+
+  tempMin.addEventListener('blur', () => {
+    const temps = safeGetValues([tempInf, tempMed, tempSup]);
+    const tmin = parseFloat(tempMin.value);
+    const tmax = parseFloat(tempMax.value);
+    if (!temps || isNaN(tmin) || isNaN(tmax)) return;
+
+    const min = Math.min(...temps);
+    if (tmin > min) tempMin.value = min;
+    if (tmin > tmax) tempMin.value = tmax;
+  });
+
+  humMax.addEventListener('blur', () => {
+    const hums = safeGetValues([humInf, humMed, humSup]);
+    const hmax = parseFloat(humMax.value);
+    if (!hums || isNaN(hmax)) return;
+
+    const max = Math.max(...hums);
+    if (hmax < max) humMax.value = max;
+  });
+
+  humMin.addEventListener('blur', () => {
+    const hums = safeGetValues([humInf, humMed, humSup]);
+    const hmin = parseFloat(humMin.value);
+    const hmax = parseFloat(humMax.value);
+    if (!hums || isNaN(hmin) || isNaN(hmax)) return;
+
+    const min = Math.min(...hums);
+    if (hmin > min) humMin.value = min;
+    if (hmin > hmax) humMin.value = hmax;
+  });
+});
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
