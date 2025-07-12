@@ -24,7 +24,8 @@ if ((int) $_SESSION['Rol'] !== 11) {
 $busqueda = $_GET['busqueda'] ?? '';
 $datos = [];
 
-$sqlBase = "
+// Construir consultas base
+$sqlMultiplicacion = "
     SELECT
         m.ID_Multiplicacion AS ID,
         m.ID_Lote,
@@ -44,9 +45,9 @@ $sqlBase = "
     LEFT JOIN lotes l ON m.ID_Lote = l.ID_Lote
     LEFT JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
     LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
+";
 
-    UNION ALL
-
+$sqlEnraizamiento = "
     SELECT
         e.ID_Enraizamiento AS ID,
         e.ID_Lote,
@@ -68,41 +69,82 @@ $sqlBase = "
     LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
 ";
 
+// Aplicar filtros solo si hay búsqueda Y no es por etapa
 if (!empty($busqueda)) {
-    $where = " WHERE 
-        Nombre_Variedad LIKE ? OR 
-        Operador LIKE ? OR 
-        DATE(Fecha_Siembra) LIKE ? OR 
-        Etapa LIKE ? OR
-        Estado LIKE ?";
+    $busquedaLower = mb_strtolower($busqueda, 'UTF-8');
     
-    $params = ["%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%", "%$busqueda%"];
-    $types = "sssss";
-} else {
-    $where = '';
-    $params = [];
-    $types = '';
+    // Verificar si es búsqueda por etapa
+    $esMultiplicacion = (strpos($busquedaLower, 'multiplicación') !== false) || 
+                       (strpos($busquedaLower, 'multiplicacion') !== false);
+    $esEnraizamiento = (strpos($busquedaLower, 'enraizamiento') !== false);
+    
+    if (!$esMultiplicacion && !$esEnraizamiento) {
+        // Búsqueda normal (por variedad, operador o fecha)
+        $filtro = " WHERE (v.Nombre_Variedad LIKE ? OR o.Nombre LIKE ? OR DATE(Fecha_Siembra) LIKE ?)";
+        $params = ["%$busqueda%", "%$busqueda%", "%$busqueda%"];
+        $types = "sss";
+        
+        $sqlMultiplicacion .= $filtro;
+        $sqlEnraizamiento .= $filtro;
+    } else {
+        // Búsqueda por etapa - no aplicar filtro adicional
+        $params = [];
+        $types = "";
+    }
 }
 
-$sqlOrder = " ORDER BY Fecha_Siembra DESC, Etapa, Nombre_Variedad";
+// Ordenar ambas consultas
+$sqlMultiplicacion .= " ORDER BY Fecha_Siembra DESC";
+$sqlEnraizamiento .= " ORDER BY Fecha_Siembra DESC";
 
-$stmt = $conn->prepare($sqlBase . $where . $sqlOrder);
-if (!$stmt) {
-    die("Error al preparar la consulta: " . $conn->error);
+// Función para ejecutar consultas
+function ejecutarConsulta($conn, $sql, $params, $types, &$datos) {
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        die("Error al preparar la consulta: " . $conn->error);
+    }
+
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+
+    while ($fila = $resultado->fetch_assoc()) {
+        $datos[] = $fila;
+    }
+
+    $stmt->close();
 }
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+// Ejecutar consultas
+ejecutarConsulta($conn, $sqlMultiplicacion, $params ?? [], $types ?? "", $datos);
+ejecutarConsulta($conn, $sqlEnraizamiento, $params ?? [], $types ?? "", $datos);
+
+// Filtrar por etapa si es necesario
+if (!empty($busqueda)) {
+    $busquedaLower = mb_strtolower($busqueda, 'UTF-8');
+    $esMultiplicacion = (strpos($busquedaLower, 'multiplicación') !== false) || 
+                       (strpos($busquedaLower, 'multiplicacion') !== false);
+    $esEnraizamiento = (strpos($busquedaLower, 'enraizamiento') !== false);
+    
+    if ($esMultiplicacion || $esEnraizamiento) {
+        $datos = array_filter($datos, function($item) use ($esMultiplicacion, $esEnraizamiento) {
+            if ($esMultiplicacion && $esEnraizamiento) {
+                return true; // Mostrar ambos
+            } elseif ($esMultiplicacion) {
+                return $item['Etapa'] === 'Multiplicación';
+            } elseif ($esEnraizamiento) {
+                return $item['Etapa'] === 'Enraizamiento';
+            }
+            return true;
+        });
+    }
 }
 
-$stmt->execute();
-$resultado = $stmt->get_result();
 
-while ($fila = $resultado->fetch_assoc()) {
-    $datos[] = $fila;
-}
 
-$stmt->close();
 ?>
 
 <!DOCTYPE html>
