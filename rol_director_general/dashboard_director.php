@@ -102,7 +102,7 @@ $nowTs           = time();
     </div>
 
     <div class="card" data-card-id="perdias-plantas">
-      <h2>🪾 Mesmas</h2>
+      <h2>🪾 Mermas</h2>
       <p>Revisa las perdidas de los  diferentes puntos del sistema.</p>
       <a href="perdidas.php" onclick="rememberCard('perdias-plantas')">
         Ver resumen
