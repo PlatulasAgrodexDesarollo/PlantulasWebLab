@@ -20,12 +20,38 @@ if ((int) $_SESSION['Rol'] !== 11) {
     exit;
 }
 
-// 1) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
+// Manejo de la semana seleccionada
+$semanaActual = date('W'); // Semana actual del año
+$anioActual = date('Y');   // Año actual
+
+// Obtener semana y año de la URL o usar la actual
+$semanaSeleccionada = isset($_GET['semana']) ? (int)$_GET['semana'] : $semanaActual;
+$anioSeleccionado = isset($_GET['anio']) ? (int)$_GET['anio'] : $anioActual;
+
+// Validar y ajustar valores
+if ($semanaSeleccionada < 1) {
+    $semanaSeleccionada = 52;
+    $anioSeleccionado--;
+} elseif ($semanaSeleccionada > 52) {
+    $semanaSeleccionada = 1;
+    $anioSeleccionado++;
+}
+
+// Calcular fechas de inicio y fin de la semana seleccionada
+$fechaInicioSemana = new DateTime();
+$fechaInicioSemana->setISODate($anioSeleccionado, $semanaSeleccionada);
+$fechaInicioSemana->setTime(0, 0, 0);
+
+$fechaFinSemana = clone $fechaInicioSemana;
+$fechaFinSemana->modify('+6 days');
+$fechaFinSemana->setTime(23, 59, 59);
+
+// Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 600 * 40;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// 2) Consulta de pérdidas de laboratorio
+// Consulta de pérdidas de laboratorio con filtro por semana
 $consultaPerdidas = "
     SELECT 
         pl.ID_Perdida,
@@ -41,31 +67,42 @@ $consultaPerdidas = "
         perdidas_laboratorio pl
     LEFT JOIN operadores oe ON pl.Operador_Entidad = oe.ID_Operador
     LEFT JOIN operadores oc ON pl.Operador_Chequeo = oc.ID_Operador
+    WHERE 
+        pl.Fecha_Perdida BETWEEN ? AND ?
     ORDER BY 
         pl.Fecha_Perdida DESC
 ";
 
-$resultadoPerdidas = $conn->query($consultaPerdidas);
+// Preparar y ejecutar la consulta con los parámetros de fecha
+$stmt = $conn->prepare($consultaPerdidas);
+if (!$stmt) {
+    die("Error al preparar la consulta: " . $conn->error);
+}
+
+$fechaInicioStr = $fechaInicioSemana->format('Y-m-d');
+$fechaFinStr = $fechaFinSemana->format('Y-m-d');
+
+$stmt->bind_param("ss", $fechaInicioStr, $fechaFinStr);
+$stmt->execute();
+$resultadoPerdidas = $stmt->get_result();
+
 $perdidas = [];
+$totalTuppersPerdidos = 0;
+$totalBrotesPerdidos = 0;
+$totalPerdidas = 0;
 
 if ($resultadoPerdidas) {
     while ($fila = $resultadoPerdidas->fetch_assoc()) {
         $perdidas[] = $fila;
+        $totalTuppersPerdidos += (int)($fila['Tuppers_Perdidos'] ?? 0);
+        $totalBrotesPerdidos += (int)($fila['Brotes_Perdidos'] ?? 0);
+        $totalPerdidas += (int)($fila['Cantidad_Perdida'] ?? 0);
     }
 } else {
     die("Error en la consulta: " . $conn->error);
 }
 
-// Calcular totales
-$totalTuppersPerdidos = 0;
-$totalBrotesPerdidos = 0;
-$totalPerdidas = 0;
-
-foreach ($perdidas as $perdida) {
-    $totalTuppersPerdidos += (int)($perdida['Tuppers_Perdidos'] ?? 0);
-    $totalBrotesPerdidos += (int)($perdida['Brotes_Perdidos'] ?? 0);
-    $totalPerdidas += (int)($perdida['Cantidad_Perdida'] ?? 0);
-}
+$stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -101,6 +138,12 @@ foreach ($perdidas as $perdida) {
     .badge-warning {
         background-color: #ffc107;
     }
+    .week-navigation {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -122,9 +165,7 @@ foreach ($perdidas as $perdida) {
         <nav class="navbar bg-body-tertiary">
           <div class="container-fluid">
             <div class="Opciones-barra">
-              <button onclick="location.href='dashboard_director.php'" class="btn btn-primary">
-                <i class="bi bi-arrow-left"></i> Volver al Inicio
-              </button>
+              <button onclick="location.href='dashboard_director.php'">🏠 Volver al Inicio</button>
             </div>
           </div>
         </nav>
@@ -132,6 +173,41 @@ foreach ($perdidas as $perdida) {
     </header>
 
 <main class="container mt-4">
+
+  <!-- Controles de navegación por semana -->
+  <div class="week-navigation">
+    <div class="row">
+      <div class="col-md-8">
+        <div class="d-flex align-items-center">
+          <h4 class="mb-0 me-3">
+            Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?>
+          </h4>
+          <div class="btn-group">
+            <a href="?semana=<?= $semanaSeleccionada - 1 ?>&anio=<?= $semanaSeleccionada == 1 ? $anioSeleccionado - 1 : $anioSeleccionado ?>"
+               class="btn btn-outline-primary">
+              <i class="bi bi-chevron-left"></i>
+            </a>
+            <a href="?semana=<?= $semanaActual ?>&anio=<?= $anioActual ?>"
+               class="btn btn-outline-primary <?= ($semanaSeleccionada == $semanaActual && $anioSeleccionado == $anioActual) ? 'active' : '' ?>">
+              Hoy
+            </a>
+            <a href="?semana=<?= $semanaSeleccionada + 1 ?>&anio=<?= $semanaSeleccionada == 52 ? $anioSeleccionado + 1 : $anioSeleccionado ?>"
+               class="btn btn-outline-primary">
+              <i class="bi bi-chevron-right"></i>
+            </a>
+          </div>
+        </div>
+        <p class="text-muted mt-2">
+          Del <?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>
+        </p>
+      </div>
+      <div class="col-md-4 text-end">
+        <button id="boton-pdf-final" class="btn btn-danger">
+          <i class="bi bi-file-earmark-pdf"></i> Generar PDF
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Sección de Resúmenes -->
   <div class="row mb-4">
@@ -247,7 +323,7 @@ foreach ($perdidas as $perdida) {
                 <tr>
                     <td colspan="8" class="text-center py-4">
                         <i class="bi bi-check-circle text-muted" style="font-size: 2rem;"></i>
-                        <p class="mt-2">No se encontraron registros de pérdidas</p>
+                        <p class="mt-2">No se encontraron registros de pérdidas para esta semana</p>
                     </td>
                 </tr>
                 <?php else: ?>
@@ -378,14 +454,16 @@ foreach ($perdidas as $perdida) {
             
             // Título del documento
             const title = "Reporte de Pérdidas de Laboratorio";
+            const subtitle = `Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?> (<?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>)`;
             const date = new Date().toLocaleDateString();
-            const subtitle = `Generado el ${date}`;
+            const footer = `Generado el ${date}`;
             
             // Agregar título
             doc.setFontSize(18);
             doc.text(title, 105, 15, { align: 'center' });
             doc.setFontSize(12);
             doc.text(subtitle, 105, 22, { align: 'center' });
+            doc.text(footer, 105, 29, { align: 'center' });
             
             // Resumen General
             doc.setFontSize(14);
@@ -498,7 +576,7 @@ foreach ($perdidas as $perdida) {
             });
             
             // Guardar el PDF
-            doc.save(`Reporte_Perdidas_${date.replace(/\//g, '-')}.pdf`);
+            doc.save(`Reporte_Perdidas_Semana_<?= $semanaSeleccionada ?>_<?= $anioSeleccionado ?>.pdf`);
             
         } catch (error) {
             console.error('Error al generar PDF:', error);
@@ -508,45 +586,27 @@ foreach ($perdidas as $perdida) {
 
     // Configurar el botón de PDF
     document.addEventListener('DOMContentLoaded', function() {
-    // Crear contenedor
-      const pdfContainer = document.createElement('div');
-      pdfContainer.className = 'text-center my-4';
-      
-      // Crear botón
-      const pdfBtn = document.createElement('button');
-      pdfBtn.className = 'btn btn-danger btn-lg';
-      pdfBtn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Generar Reporte de Pérdidas';
-      
-      // Agregar evento
-      pdfBtn.addEventListener('click', function() {
-          const originalHTML = this.innerHTML;
-          this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generando PDF...';
-          this.disabled = true;
-          
-          setTimeout(() => {
-              try {
-                  generarPDFPerdidas();
-              } catch (error) {
-                  console.error(error);
-                  alert('Error al generar PDF: ' + error.message);
-              } finally {
-                  this.innerHTML = originalHTML;
-                  this.disabled = false;
-              }
-          }, 100);
-      });
-      
-      // Agregar al contenedor
-      pdfContainer.appendChild(pdfBtn);
-      
-      // Insertar antes de la tabla
-      const tabla = document.querySelector('.table-responsive');
-      if (tabla) {
-        tabla.parentNode.insertBefore(pdfContainer, tabla);
-      } else {
-        document.body.appendChild(pdfContainer);
-      }
-  });
+        const pdfBtn = document.getElementById('boton-pdf-final');
+        if (pdfBtn) {
+            pdfBtn.addEventListener('click', function() {
+                const originalHTML = this.innerHTML;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generando PDF...';
+                this.disabled = true;
+                
+                setTimeout(() => {
+                    try {
+                        generarPDFPerdidas();
+                    } catch (error) {
+                        console.error('Error al generar PDF:', error);
+                        alert('Error al generar el PDF: ' + error.message);
+                    } finally {
+                        this.innerHTML = originalHTML;
+                        this.disabled = false;
+                    }
+                }, 100);
+            });
+        }
+    });
   </script>
 </body>
 </html>
