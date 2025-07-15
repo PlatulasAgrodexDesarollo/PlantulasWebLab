@@ -20,11 +20,37 @@ if ((int) $_SESSION['Rol'] !== 11) {
     exit;
 }
 
+// Manejo de la semana seleccionada
+$semanaActual = date('W'); // Semana actual del año
+$anioActual = date('Y');   // Año actual
+
+// Obtener semana y año de la URL o usar la actual
+$semanaSeleccionada = isset($_GET['semana']) ? (int)$_GET['semana'] : $semanaActual;
+$anioSeleccionado = isset($_GET['anio']) ? (int)$_GET['anio'] : $anioActual;
+
+// Validar y ajustar valores
+if ($semanaSeleccionada < 1) {
+    $semanaSeleccionada = 52;
+    $anioSeleccionado--;
+} elseif ($semanaSeleccionada > 52) {
+    $semanaSeleccionada = 1;
+    $anioSeleccionado++;
+}
+
+// Calcular fechas de inicio y fin de la semana seleccionada
+$fechaInicioSemana = new DateTime();
+$fechaInicioSemana->setISODate($anioSeleccionado, $semanaSeleccionada);
+$fechaInicioSemana->setTime(0, 0, 0);
+
+$fechaFinSemana = clone $fechaInicioSemana;
+$fechaFinSemana->modify('+6 days');
+$fechaFinSemana->setTime(23, 59, 59);
+
 // Procesar búsqueda
 $busqueda = $_GET['busqueda'] ?? '';
 $datos = [];
 
-// Construir consultas base
+// Construir consultas base con filtro por semana
 $sqlMultiplicacion = "
     SELECT
         m.ID_Multiplicacion AS ID,
@@ -45,6 +71,7 @@ $sqlMultiplicacion = "
     LEFT JOIN lotes l ON m.ID_Lote = l.ID_Lote
     LEFT JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
     LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
+    WHERE m.Fecha_Siembra BETWEEN ? AND ?
 ";
 
 $sqlEnraizamiento = "
@@ -67,9 +94,10 @@ $sqlEnraizamiento = "
     LEFT JOIN lotes l ON e.ID_Lote = l.ID_Lote
     LEFT JOIN variedades v ON l.ID_Variedad = v.ID_Variedad
     LEFT JOIN operadores o ON l.ID_Operador = o.ID_Operador
+    WHERE e.Fecha_Siembra BETWEEN ? AND ?
 ";
 
-// Aplicar filtros solo si hay búsqueda Y no es por etapa
+// Aplicar filtros adicionales si hay búsqueda Y no es por etapa
 if (!empty($busqueda)) {
     $busquedaLower = mb_strtolower($busqueda, 'UTF-8');
     
@@ -80,7 +108,7 @@ if (!empty($busqueda)) {
     
     if (!$esMultiplicacion && !$esEnraizamiento) {
         // Búsqueda normal (por variedad, operador o fecha)
-        $filtro = " WHERE (v.Nombre_Variedad LIKE ? OR o.Nombre LIKE ? OR DATE(Fecha_Siembra) LIKE ?)";
+        $filtro = " AND (v.Nombre_Variedad LIKE ? OR o.Nombre LIKE ? OR DATE(Fecha_Siembra) LIKE ?)";
         $params = ["%$busqueda%", "%$busqueda%", "%$busqueda%"];
         $types = "sss";
         
@@ -118,9 +146,17 @@ function ejecutarConsulta($conn, $sql, $params, $types, &$datos) {
     $stmt->close();
 }
 
-// Ejecutar consultas
-ejecutarConsulta($conn, $sqlMultiplicacion, $params ?? [], $types ?? "", $datos);
-ejecutarConsulta($conn, $sqlEnraizamiento, $params ?? [], $types ?? "", $datos);
+// Parámetros para el filtro de fecha
+$fechaInicioStr = $fechaInicioSemana->format('Y-m-d');
+$fechaFinStr = $fechaFinSemana->format('Y-m-d');
+
+// Ejecutar consultas con filtro de semana
+$paramsMultiplicacion = array_merge([$fechaInicioStr, $fechaFinStr], $params ?? []);
+$paramsEnraizamiento = array_merge([$fechaInicioStr, $fechaFinStr], $params ?? []);
+$typesWithDate = "ss" . ($types ?? "");
+
+ejecutarConsulta($conn, $sqlMultiplicacion, $paramsMultiplicacion, $typesWithDate, $datos);
+ejecutarConsulta($conn, $sqlEnraizamiento, $paramsEnraizamiento, $typesWithDate, $datos);
 
 // Filtrar por etapa si es necesario
 if (!empty($busqueda)) {
@@ -142,9 +178,6 @@ if (!empty($busqueda)) {
         });
     }
 }
-
-
-
 ?>
 
 <!DOCTYPE html>
@@ -192,22 +225,53 @@ if (!empty($busqueda)) {
     </header>
 
     <main class="container mt-4">
-      <form method="GET" class="mb-4" style="max-width: 600px;">
-        <div class="input-group">
-          <span class="input-group-text bg-primary text-white">
-            <i class="bi bi-search"></i>
-          </span>
-          <input type="text" class="form-control" name="busqueda" id="busqueda"
-                placeholder="Buscar por variedad, operador, etapa o estado..."
-                value="<?= htmlspecialchars($busqueda) ?>">
-          <button class="btn btn-outline-secondary" type="submit">
-            Buscar
-          </button>
-          <button class="btn btn-outline-danger" type="button" id="limpiar-busqueda">
-            <i class="bi bi-x-lg"></i>
-          </button>
+      <!-- Controles de navegación por semana -->
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <div class="d-flex align-items-center">
+            <h4 class="mb-0 me-3">
+              Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?>
+            </h4>
+            <div class="btn-group">
+              <a href="?semana=<?= $semanaSeleccionada - 1 ?>&anio=<?= $semanaSeleccionada == 1 ? $anioSeleccionado - 1 : $anioSeleccionado ?><?= !empty($busqueda) ? '&busqueda=' . urlencode($busqueda) : '' ?>"
+                 class="btn btn-outline-primary">
+                <i class="bi bi-chevron-left"></i>
+              </a>
+              <a href="?semana=<?= $semanaActual ?>&anio=<?= $anioActual ?><?= !empty($busqueda) ? '&busqueda=' . urlencode($busqueda) : '' ?>"
+                 class="btn btn-outline-primary <?= ($semanaSeleccionada == $semanaActual && $anioSeleccionado == $anioActual) ? 'active' : '' ?>">
+                Hoy
+              </a>
+              <a href="?semana=<?= $semanaSeleccionada + 1 ?>&anio=<?= $semanaSeleccionada == 52 ? $anioSeleccionado + 1 : $anioSeleccionado ?><?= !empty($busqueda) ? '&busqueda=' . urlencode($busqueda) : '' ?>"
+                 class="btn btn-outline-primary">
+                <i class="bi bi-chevron-right"></i>
+              </a>
+            </div>
+          </div>
+          <p class="text-muted mt-2">
+            Del <?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>
+          </p>
         </div>
-      </form>
+        <div class="col-md-6">
+          <form method="GET" class="mb-4">
+            <input type="hidden" name="semana" value="<?= $semanaSeleccionada ?>">
+            <input type="hidden" name="anio" value="<?= $anioSeleccionado ?>">
+            <div class="input-group">
+              <span class="input-group-text bg-primary text-white">
+                <i class="bi bi-search"></i>
+              </span>
+              <input type="text" class="form-control" name="busqueda" id="busqueda"
+                    placeholder="Buscar por variedad, operador, etapa o estado..."
+                    value="<?= htmlspecialchars($busqueda) ?>">
+              <button class="btn btn-outline-secondary" type="submit">
+                Buscar
+              </button>
+              <button class="btn btn-outline-danger" type="button" id="limpiar-busqueda">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <div class="card card-lista">
         <h2>Control de Lavado</h2>
@@ -229,7 +293,7 @@ if (!empty($busqueda)) {
                 <tr>
                   <td colspan="7" class="text-center py-4">
                     <i class="bi bi-inbox text-muted" style="font-size: 2rem;"></i>
-                    <p class="mt-2">No hay registros de lavado</p>
+                    <p class="mt-2">No hay registros de lavado para esta semana</p>
                   </td>
                 </tr>
               <?php else: ?>
@@ -276,10 +340,12 @@ if (!empty($busqueda)) {
       if (limpiarBtn && inputBusqueda) {
         limpiarBtn.addEventListener('click', () => {
           inputBusqueda.value = '';
-          window.location.href = window.location.pathname;
+          // Mantener la semana actual al limpiar la búsqueda
+          window.location.href = window.location.pathname + '?semana=<?= $semanaSeleccionada ?>&anio=<?= $anioSeleccionado ?>';
         });
       }
     });
+    
     // Función para generar el PDF
     function generarPDFLavado() {
         try {
@@ -291,14 +357,16 @@ if (!empty($busqueda)) {
             
             // Título del documento
             const title = "Reporte de Control de Lavado";
+            const subtitle = `Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?> (<?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>)`;
             const date = new Date().toLocaleDateString();
-            const subtitle = `Generado el ${date}`;
+            const footer = `Generado el ${date}`;
             
             // Agregar título
             doc.setFontSize(18);
             doc.text(title, 105, 15, { align: 'center' });
             doc.setFontSize(12);
             doc.text(subtitle, 105, 22, { align: 'center' });
+            doc.text(footer, 105, 29, { align: 'center' });
             
             // Preparar datos de la tabla
             const tableData = [
@@ -319,7 +387,7 @@ if (!empty($busqueda)) {
             
             // Crear tabla
             doc.autoTable({
-                startY: 30,
+                startY: 35,
                 head: [tableData[0]],
                 body: tableData.slice(1),
                 theme: 'grid',
@@ -352,7 +420,7 @@ if (!empty($busqueda)) {
             });
             
             // Guardar el PDF
-            doc.save(`Control_Lavado_${date.replace(/\//g, '-')}.pdf`);
+            doc.save(`Control_Lavado_Semana_<?= $semanaSeleccionada ?>_<?= $anioSeleccionado ?>.pdf`);
             
         } catch (error) {
             console.error('Error al generar PDF:', error);
@@ -360,7 +428,7 @@ if (!empty($busqueda)) {
         }
     }
 
-    // Configurar el botón de PDF en el área de búsqueda
+    // Configurar el botón de PDF
     document.addEventListener('DOMContentLoaded', function() {
         // Crear botón
         const pdfBtn = document.createElement('button');
