@@ -539,10 +539,12 @@ foreach ($perdidas as $perdida) {
       // Agregar al contenedor
       pdfContainer.appendChild(pdfBtn);
       
-      // Insertar antes del footer
-      const footer = document.querySelector('footer');
-      if (footer) {
-          footer.parentNode.insertBefore(pdfContainer, footer);
+      // Insertar antes de la tabla
+      const tabla = document.querySelector('.table-responsive');
+      if (tabla) {
+        tabla.parentNode.insertBefore(pdfContainer, tabla);
+      } else {
+        document.body.appendChild(pdfContainer);
       }
   });
   </script>

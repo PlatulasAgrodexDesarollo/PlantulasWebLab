@@ -133,8 +133,8 @@ if ($resultadoDetallado) {
              style="cursor:<?= $volver1 ? 'pointer' : 'default' ?>"
              <?= $volver1 ? "onclick=\"location.href='../rol_administrador/volver_rol.php'\"" : '' ?>>
         <div>
-          <h2>Produccion</h2>
-          <p>Siembra diaria etapa 2 y 3.</p>
+          <h2>Inventario</h2>
+          <p>Planta de etapa 2 y 3.</p>
         </div>
       </div>
 
@@ -539,14 +539,14 @@ if ($resultadoDetallado) {
       // Agregar al contenedor
       pdfContainer.appendChild(pdfBtn);
       
-      // Insertar antes del footer
-      const footer = document.querySelector('footer');
-      if (footer) {
-        footer.parentNode.insertBefore(pdfContainer, footer);
+      // Insertar antes de la tabla
+      const tabla = document.querySelector('.table-responsive');
+      if (tabla) {
+        tabla.parentNode.insertBefore(pdfContainer, tabla);
       } else {
-        // Si no hay footer, agregar al final del body
         document.body.appendChild(pdfContainer);
       }
+
     }
 
     // Inicialización - Solo una llamada a crearBotonPDF
