@@ -20,12 +20,38 @@ if ((int) $_SESSION['Rol'] !== 11) {
     exit;
 }
 
+// Manejo de la semana seleccionada
+$semanaActual = date('W'); // Semana actual del año
+$anioActual = date('Y');   // Año actual
+
+// Obtener semana y año de la URL o usar la actual
+$semanaSeleccionada = isset($_GET['semana']) ? (int)$_GET['semana'] : $semanaActual;
+$anioSeleccionado = isset($_GET['anio']) ? (int)$_GET['anio'] : $anioActual;
+
+// Validar y ajustar valores
+if ($semanaSeleccionada < 1) {
+    $semanaSeleccionada = 52;
+    $anioSeleccionado--;
+} elseif ($semanaSeleccionada > 52) {
+    $semanaSeleccionada = 1;
+    $anioSeleccionado++;
+}
+
+// Calcular fechas de inicio y fin de la semana seleccionada
+$fechaInicioSemana = new DateTime();
+$fechaInicioSemana->setISODate($anioSeleccionado, $semanaSeleccionada);
+$fechaInicioSemana->setTime(0, 0, 0);
+
+$fechaFinSemana = clone $fechaInicioSemana;
+$fechaFinSemana->modify('+6 days');
+$fechaFinSemana->setTime(23, 59, 59);
+
 // 1) Variables para el modal de sesión (3 min inactividad, aviso 1 min antes)
 $sessionLifetime = 600 * 40;   // 180 s
 $warningOffset   = 60 * 1;   // 60 s
 $nowTs           = time();
 
-// Nueva consulta SQL con detalles por variedad
+// Nueva consulta SQL con detalles por variedad y filtro por semana
 $consultaDetallada = "
     SELECT 
         'Multiplicación' AS Etapa,
@@ -41,6 +67,7 @@ $consultaDetallada = "
     FROM multiplicacion m
     JOIN variedades v ON m.ID_Variedad = v.ID_Variedad
     WHERE m.Extraido_Lavado = 0
+    AND m.Fecha_Siembra BETWEEN ? AND ?
 
     UNION ALL
 
@@ -58,11 +85,24 @@ $consultaDetallada = "
     FROM enraizamiento e
     JOIN variedades v ON e.ID_Variedad = v.ID_Variedad
     WHERE e.Extraido_Lavado = 0
+    AND e.Fecha_Siembra BETWEEN ? AND ?
 
     ORDER BY Etapa, FIELD(Rango_Dias, '0-20 días', '20-40 días', 'Más de 40 días'), Variedad;
 ";
 
-$resultadoDetallado = $conn->query($consultaDetallada);
+// Preparar y ejecutar la consulta con los parámetros de fecha
+$stmt = $conn->prepare($consultaDetallada);
+if (!$stmt) {
+    die("Error al preparar la consulta: " . $conn->error);
+}
+
+$fechaInicioStr = $fechaInicioSemana->format('Y-m-d');
+$fechaFinStr = $fechaFinSemana->format('Y-m-d');
+
+$stmt->bind_param("ssss", $fechaInicioStr, $fechaFinStr, $fechaInicioStr, $fechaFinStr);
+$stmt->execute();
+$resultadoDetallado = $stmt->get_result();
+
 $resumenDetallado = [];
 $totalesPorEtapa = ['Multiplicación' => 0, 'Enraizamiento' => 0];
 $totalesPorRango = [
@@ -87,6 +127,8 @@ if ($resultadoDetallado) {
 } else {
     die("Error en la consulta: " . $conn->error);
 }
+
+$stmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -121,6 +163,12 @@ if ($resultadoDetallado) {
         max-height: 300px;
         overflow-y: auto;
     }
+    .week-navigation {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -150,6 +198,41 @@ if ($resultadoDetallado) {
     </header>
 
 <main class="container mt-4">
+
+  <!-- Controles de navegación por semana -->
+  <div class="week-navigation">
+    <div class="row">
+      <div class="col-md-8">
+        <div class="d-flex align-items-center">
+          <h4 class="mb-0 me-3">
+            Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?>
+          </h4>
+          <div class="btn-group">
+            <a href="?semana=<?= $semanaSeleccionada - 1 ?>&anio=<?= $semanaSeleccionada == 1 ? $anioSeleccionado - 1 : $anioSeleccionado ?>"
+               class="btn btn-outline-primary">
+              <i class="bi bi-chevron-left"></i>
+            </a>
+            <a href="?semana=<?= $semanaActual ?>&anio=<?= $anioActual ?>"
+               class="btn btn-outline-primary <?= ($semanaSeleccionada == $semanaActual && $anioSeleccionado == $anioActual) ? 'active' : '' ?>">
+              Hoy
+            </a>
+            <a href="?semana=<?= $semanaSeleccionada + 1 ?>&anio=<?= $semanaSeleccionada == 52 ? $anioSeleccionado + 1 : $anioSeleccionado ?>"
+               class="btn btn-outline-primary">
+              <i class="bi bi-chevron-right"></i>
+            </a>
+          </div>
+        </div>
+        <p class="text-muted mt-2">
+          Del <?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>
+        </p>
+      </div>
+      <div class="col-md-4 text-end">
+        <button id="boton-pdf-final" class="btn btn-danger">
+          <i class="bi bi-file-earmark-pdf"></i> Generar PDF
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Sección de Resúmenes -->
   <div class="row mb-4">
@@ -223,7 +306,7 @@ if ($resultadoDetallado) {
       <tbody>
         <?php if (empty($resumenDetallado)): ?>
           <tr>
-            <td colspan="6" class="text-center">No hay datos disponibles</td>
+            <td colspan="6" class="text-center">No hay datos disponibles para esta semana</td>
           </tr>
         <?php else: 
           $currentEtapa = null;
@@ -402,14 +485,16 @@ if ($resultadoDetallado) {
         
         // Título del documento
         const title = "Reporte de Producción - Etapas 2 y 3";
+        const subtitle = `Semana <?= $semanaSeleccionada ?> del <?= $anioSeleccionado ?> (<?= $fechaInicioSemana->format('d/m/Y') ?> al <?= $fechaFinSemana->format('d/m/Y') ?>)`;
         const date = new Date().toLocaleDateString();
-        const subtitle = `Generado el ${date}`;
+        const footer = `Generado el ${date}`;
         
         // Agregar título
         doc.setFontSize(18);
         doc.text(title, 105, 15, { align: 'center' });
         doc.setFontSize(12);
         doc.text(subtitle, 105, 22, { align: 'center' });
+        doc.text(footer, 105, 29, { align: 'center' });
         
         // Resumen General
         doc.setFontSize(14);
@@ -486,7 +571,7 @@ if ($resultadoDetallado) {
         });
         
         // Guardar el PDF
-        doc.save(`Reporte_Produccion_${date.replace(/\//g, '-')}.pdf`);
+        doc.save(`Reporte_Produccion_Semana_<?= $semanaSeleccionada ?>_<?= $anioSeleccionado ?>.pdf`);
         
       } catch (error) {
         console.error('Error al generar PDF:', error);
@@ -494,85 +579,31 @@ if ($resultadoDetallado) {
       }
     }
 
-    // Función para crear el botón de PDF
-    function crearBotonPDF() {
-      // Verificar si el botón ya existe
-      if (document.getElementById('boton-pdf-final')) {
-        return;
-      }
-      
-      // Crear contenedor
-      const pdfContainer = document.createElement('div');
-      pdfContainer.className = 'pdf-container text-center my-4';
-      pdfContainer.style.padding = '20px';
-      pdfContainer.style.backgroundColor = '#f8f9fa';
-      pdfContainer.style.borderRadius = '5px';
-      pdfContainer.style.border = '1px solid #dee2e6';
-      
-      // Crear botón
-      const pdfBtn = document.createElement('button');
-      pdfBtn.id = 'boton-pdf-final';
-      pdfBtn.className = 'btn btn-danger btn-lg';
-      pdfBtn.style.padding = '10px 25px';
-      pdfBtn.style.fontSize = '1.1rem';
-      pdfBtn.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Generar Reporte en PDF';
-      
-      // Agregar evento con feedback visual
-      pdfBtn.addEventListener('click', function() {
-        const originalHTML = this.innerHTML;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generando PDF...';
-        this.disabled = true;
-        
-        setTimeout(() => {
-          try {
-            generarPDFProduccion();
-          } catch (e) {
-            console.error(e);
-            alert('Error: ' + e.message);
-          } finally {
-            this.innerHTML = originalHTML;
-            this.disabled = false;
-          }
-        }, 100);
-      });
-      
-      // Agregar al contenedor
-      pdfContainer.appendChild(pdfBtn);
-      
-      // Insertar antes de la tabla
-      const tabla = document.querySelector('.table-responsive');
-      if (tabla) {
-        tabla.parentNode.insertBefore(pdfContainer, tabla);
-      } else {
-        document.body.appendChild(pdfContainer);
-      }
-
-    }
-
-    // Inicialización - Solo una llamada a crearBotonPDF
+    // Configurar el botón de PDF
     document.addEventListener('DOMContentLoaded', function() {
-      // Otros event listeners que ya tenías
-      const limpiarBtn = document.getElementById('limpiar-busqueda');
-      const inputBusqueda = document.getElementById('busqueda');
-
-      if (limpiarBtn && inputBusqueda) {
-        limpiarBtn.addEventListener('click', () => {
-          inputBusqueda.value = '';
-          window.location.href = window.location.pathname;
+      const pdfBtn = document.getElementById('boton-pdf-final');
+      if (pdfBtn) {
+        pdfBtn.addEventListener('click', function() {
+          // Cambiar apariencia durante la generación
+          const originalHTML = this.innerHTML;
+          this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generando...';
+          this.disabled = true;
+          
+          // Pequeño retraso para permitir la actualización visual
+          setTimeout(() => {
+            try {
+              generarPDFProduccion();
+            } catch (error) {
+              console.error('Error al generar PDF:', error);
+              alert('Error al generar el PDF: ' + error.message);
+            } finally {
+              // Restaurar botón
+              this.innerHTML = originalHTML;
+              this.disabled = false;
+            }
+          }, 100);
         });
       }
-
-      const last = sessionStorage.getItem('lastCard');
-      if (last) {
-        const target = document.querySelector(`.dashboard-grid .card[data-card-id="${last}"]`);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          target.classList.add('highlight');
-        }
-      }
-      
-      // Crear el botón de PDF
-      crearBotonPDF();
     });
   </script>
 </body>
